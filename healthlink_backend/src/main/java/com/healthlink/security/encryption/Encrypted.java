@@ -1,0 +1,8 @@
+package com.healthlink.security.encryption;
+
+import java.lang.annotation.*;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface Encrypted {
+}

@@ -1,0 +1,36 @@
+# Backend
+healthlink_backend/build/
+healthlink_backend/bin/
+healthlink_backend/.gradle/
+healthlink_backend/logs/
+healthlink_backend/*.log
+healthlink_backend/.env
+
+# Mobile
+healthlink_mobile/build/
+healthlink_mobile/.dart_tool/
+healthlink_mobile/.flutter-plugins
+healthlink_mobile/.flutter-plugins-dependencies
+healthlink_mobile/.packages
+healthlink_mobile/pubspec.lock
+healthlink_mobile/coverage/
+healthlink_mobile/android/local.properties
+healthlink_mobile/android/key.properties
+healthlink_mobile/ios/Pods/
+healthlink_mobile/ios/.symlinks/
+healthlink_mobile/macos/Pods/
+
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,0 +1,81 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+
+  # Disable external service integrations for tests
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+  mail:
+    host: localhost
+    port: 1025
+
+  elasticsearch:
+    uris: http://localhost:9200
+
+  data:
+    elasticsearch:
+      repositories:
+        enabled: false
+
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: create-drop
+
+# Management endpoints - minimal config for tests
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318
+  metrics:
+    export:
+      prometheus:
+        enabled: false
+
+# Application-specific test overrides
+healthlink:
+  jwt:
+    secret: test-secret-key-for-integration-tests-min-256-bits-required-here
+    access-token-expiration: 900000
+    refresh-token-expiration: 604800000
+
+  security:
+    jwt:
+      secret: test-secret-key-for-integration-tests-min-256-bits-required-here
+      access-token-expiration: 900000
+      refresh-token-expiration: 604800000
+
+  phi:
+    encryption-key: dGVzdC1waGktZW5jcnlwdGlvbi1rZXktMzJjaGFycw==
+    audit-enabled: false
+
+  storage:
+    endpoint: http://localhost:9000
+    bucket: healthlink-records
+    access-key: healthlink_minio
+    secret-key: healthlink_minio_password_123
+    encryption-enabled: true
+
+  webrtc:
+    provider: janus
+    janus:
+      url: http://localhost:8088/janus
+      admin-secret: test
+
+  rate-limit:
+    enabled: false
+
+logging:
+  level:
+    org.springframework: WARN
+    com.healthlink: INFO
+    org.testcontainers: INFO
+    org.hibernate.SQL: DEBUG

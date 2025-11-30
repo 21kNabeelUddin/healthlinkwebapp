@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Console appender with JSON formatting for production -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>clientIp</includeMdcKeyName>
+            <includeMdcKeyName>userAgent</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>username</includeMdcKeyName>
+            <includeMdcKeyName>method</includeMdcKeyName>
+            <includeMdcKeyName>path</includeMdcKeyName>
+            
+            <customFields>{"application":"healthlink-backend","environment":"${ENVIRONMENT:-dev}"}</customFields>
+            
+            <!-- Exclude PHI fields from logs -->
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <version>@version</version>
+                <message>message</message>
+                <logger>logger</logger>
+                <thread>thread</thread>
+                <level>level</level>
+                <levelValue>levelValue</levelValue>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <!-- Console appender with plain text for local development -->
+    <appender name="CONSOLE_PLAIN" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] [%X{traceId}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- File appender for audit logs (PHI access logs) -->
+    <appender name="PHI_AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/phi-audit.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/phi-audit-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>90</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>username</includeMdcKeyName>
+            <customFields>{"logType":"phi_audit"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- Separate logger for PHI access (SafeLogger audit events) -->
+    <logger name="com.healthlink.security.audit" level="INFO" additivity="false">
+        <appender-ref ref="PHI_AUDIT_FILE"/>
+        <appender-ref ref="CONSOLE_JSON"/>
+    </logger>
+
+    <!-- Security events logger -->
+    <logger name="com.healthlink.security" level="INFO"/>
+    
+    <!-- Webhook and notification workers -->
+    <logger name="com.healthlink.infrastructure.webhook" level="INFO"/>
+    <logger name="com.healthlink.infrastructure.notification" level="INFO"/>
+
+    <!-- Suppress noisy third-party logs -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="io.lettuce" level="WARN"/>
+    <logger name="org.elasticsearch" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+
+    <!-- Root logger -->
+    <root level="${LOG_LEVEL:-INFO}">
+        <!-- Use JSON in production, plain in dev -->
+        <if condition='property("ENVIRONMENT").contains("prod")'>
+            <then>
+                <appender-ref ref="CONSOLE_JSON"/>
+            </then>
+            <else>
+                <appender-ref ref="CONSOLE_PLAIN"/>
+            </else>
+        </if>
+    </root>
+</configuration>

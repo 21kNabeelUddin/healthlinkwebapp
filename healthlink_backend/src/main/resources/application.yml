@@ -1,0 +1,266 @@
+# Spring Boot Application Configuration
+
+spring:
+  application:
+    name: healthlink-backend
+
+  # Database Configuration
+  # Supports DATABASE_URL environment variable (Neon PostgreSQL format)
+  # Format: postgresql://user:password@host:port/database?params
+  # Or use SPRING_DATASOURCE_URL directly (loaded from .env file)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/healthlink}
+    username: ${SPRING_DATASOURCE_USERNAME:healthlink_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:healthlink_password_123}}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        "[format_sql]": true
+        "[use_sql_comments]": true
+        jdbc:
+          "[batch_size]": 20
+        "[order_inserts]": true
+        "[order_updates]": true
+    open-in-view: false
+
+  # Redis Configuration
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: ${REDIS_PASSWORD:healthlink_redis_pass}
+      timeout: 60000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+    # ElasticSearch Configuration
+    elasticsearch:
+      repositories:
+        enabled: true
+
+  elasticsearch:
+    uris: http://elasticsearch:9200
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+
+  # Mail Configuration
+  mail:
+    host: ${MAIL_HOST:mailhog}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+
+  # RabbitMQ Configuration
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: ${RABBITMQ_DEFAULT_USER:healthlink}
+    password: ${RABBITMQ_DEFAULT_PASS:healthlink_rabbit_pass}
+    virtual-host: healthlink_vhost
+
+  # Cache Configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+
+  # Security
+  security:
+    user:
+      name: admin
+      password: ${ADMIN_PASSWORD:admin}
+
+  # Servlet
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  # Jackson
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: Asia/Karachi
+    default-property-inclusion: non_null
+
+# Server Configuration
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+    include-binding-errors: never
+
+  # SSL/TLS Configuration (production)
+  ssl:
+    enabled: false
+    # key-store: classpath:keystore.p12
+    # key-store-password: ${KEYSTORE_PASSWORD:}
+    # key-store-type: PKCS12
+
+# Management & Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+    elasticsearch:
+      enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://jaeger:4318}
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
+
+# Application Specific Configuration
+healthlink:
+  # JWT Configuration
+  jwt:
+    secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-use-strong-random-key}
+    access-token-expiration: 900000 # 15 minutes
+    refresh-token-expiration: 604800000 # 7 days
+
+  # OTP Configuration
+  otp:
+    length: 6
+    expiration: 300000 # 5 minutes
+    max-attempts: 3
+
+  # Rate Limiting
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    requests-per-minute: 60
+    otp-requests-per-hour: 5
+
+  # AWS S3 Configuration
+  aws:
+    s3:
+      bucket-name: ${S3_BUCKET_NAME:healthlink-medical-records}
+      region: ${AWS_REGION:us-east-1}
+      access-key: ${AWS_ACCESS_KEY:}
+      secret-key: ${AWS_SECRET_KEY:}
+
+  storage:
+    bucket: ${S3_BUCKET_NAME:healthlink-medical-records}
+    endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+    access-key: ${AWS_ACCESS_KEY:healthlink_minio}
+    secret-key: ${AWS_SECRET_KEY:healthlink_minio_password_123}
+    encryption-enabled: ${STORAGE_ENCRYPTION_ENABLED:true}
+
+  # WebRTC Configuration (Janus self-hosted + Coturn TURN)
+  webrtc:
+    provider: janus
+    signaling:
+      url: ${SIGNALING_URL:ws://localhost:8080/signaling}
+    jwt:
+      expiration: 3600000 # 1 hour in milliseconds
+    janus:
+      url: ${JANUS_URL:http://janus:8088/janus}
+      admin-secret: ${JANUS_ADMIN_SECRET:janusoverlord}
+    # ICE Servers (STUN/TURN)
+    ice-servers:
+      - urls: ${STUN_SERVER:stun:stun.l.google.com:19302}
+        username: ""
+        credential: ""
+      - urls: ${TURN_SERVER:turn:coturn:3478}
+        username: ${TURN_USERNAME:healthlink}
+        credential: ${TURN_CREDENTIAL:healthlink_turn_secret_2025}
+        credentialType: password
+      - urls: ${TURNS_SERVER:turns:coturn:5349}
+        username: ${TURN_USERNAME:healthlink}
+        credential: ${TURN_CREDENTIAL:healthlink_turn_secret_2025}
+        credentialType: password
+
+  # CORS Configuration
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:8081
+    allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+
+  # PHI Audit
+  phi:
+    audit-enabled: true
+    encryption-enabled: true
+    encryption-algorithm: AES/GCM/NoPadding
+    # Single active key OR use 'encryption-keys' for rotation.
+    # encryption-keys format: alias:base64key256,alias2:base64legacy256
+    # TEMPORARY: Using a test key for development (change in production!)
+    encryption-key: ${PHI_ENCRYPTION_KEY:dGVtcG9yYXJ5LXBoaS1lbmNyeXB0aW9uLWtleS0zMmNoYXJz}
+    encryption-keys: ${PHI_ENCRYPTION_KEYS:}
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    "[com.healthlink]": DEBUG
+    "[org.springframework.web]": INFO
+    "[org.springframework.security]": DEBUG
+    "[org.hibernate.SQL]": DEBUG
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/healthlink-backend.log
+    max-size: 10MB
+    max-history: 30
+
+# Sentry Configuration
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:development}
+  traces-sample-rate: 1.0

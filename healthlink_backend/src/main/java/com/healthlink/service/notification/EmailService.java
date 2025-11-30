@@ -1,0 +1,368 @@
+package com.healthlink.service.notification;
+
+import com.healthlink.infrastructure.logging.SafeLogger;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import java.util.Map;
+
+/**
+ * Email Service with template support
+ * Handles all email notifications for the platform
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class EmailService {
+
+    private final JavaMailSender mailSender;
+    private final TemplateEngine templateEngine;
+
+    @Value("${healthlink.mail.from:noreply@healthlink.com}")
+    private String fromEmail;
+
+    @Value("${healthlink.mail.from-name:HealthLink Platform}")
+    private String fromName;
+
+    /**
+     * Send password reset email with OTP
+     */
+    @Async
+    public void sendPasswordResetEmail(String toEmail, String userName, String otp) {
+        try {
+            Context context = new Context();
+            context.setVariable("userName", userName);
+            context.setVariable("otp", otp);
+            context.setVariable("validityMinutes", 15);
+
+            String htmlContent = templateEngine.process("email/password-reset", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Reset Your Password - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "password-reset")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "password-reset")
+                .withMasked("email", toEmail)
+                .with("error", e.getClass().getSimpleName())
+                .log();
+            throw new RuntimeException("Failed to send password reset email", e);
+        }
+    }
+
+    /**
+     * Send password reset confirmation email
+     */
+    @Async
+    public void sendPasswordResetConfirmation(String toEmail, String userName) {
+        try {
+            Context context = new Context();
+            context.setVariable("userName", userName);
+
+            String htmlContent = templateEngine.process("email/password-reset-confirmation", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Password Reset Successful - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "password-reset-confirmation")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "password-reset-confirmation")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send account approval email
+     */
+    @Async
+    public void sendAccountApprovalEmail(String toEmail, String userName, String role) {
+        try {
+            Context context = new Context();
+            context.setVariable("userName", userName);
+            context.setVariable("role", role);
+
+            String htmlContent = templateEngine.process("email/account-approved", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Account Approved - Welcome to HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "account-approved")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "account-approved")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send account rejection email
+     */
+    @Async
+    public void sendAccountRejectionEmail(String toEmail, String userName, String role, String reason) {
+        try {
+            Context context = new Context();
+            context.setVariable("userName", userName);
+            context.setVariable("role", role);
+            context.setVariable("reason", reason);
+
+            String htmlContent = templateEngine.process("email/account-rejected", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Account Application Update - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "account-rejected")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "account-rejected")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send appointment confirmation email
+     */
+    @Async
+    public void sendAppointmentConfirmation(String toEmail, String patientName, String doctorName,
+            String appointmentTime) {
+        try {
+            Context context = new Context();
+            context.setVariable("patientName", patientName);
+            context.setVariable("doctorName", doctorName);
+            context.setVariable("appointmentTime", appointmentTime);
+
+            String htmlContent = templateEngine.process("email/appointment-confirmation", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Appointment Confirmed - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "appointment-confirmation")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "appointment-confirmation")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send appointment reminder email
+     */
+    @Async
+    public void sendAppointmentReminder(String toEmail, String patientName, String doctorName, String appointmentTime) {
+        try {
+            Context context = new Context();
+            context.setVariable("patientName", patientName);
+            context.setVariable("doctorName", doctorName);
+            context.setVariable("appointmentTime", appointmentTime);
+
+            String htmlContent = templateEngine.process("email/appointment-reminder", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Appointment Reminder - Tomorrow - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "appointment-reminder")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "appointment-reminder")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send payment verification notification to staff
+     */
+    @Async
+    public void sendPaymentVerificationNotification(String toEmail, String staffName, String patientName,
+            String amount) {
+        try {
+            Context context = new Context();
+            context.setVariable("staffName", staffName);
+            context.setVariable("patientName", patientName);
+            context.setVariable("amount", amount);
+
+            String htmlContent = templateEngine.process("email/payment-verification-needed", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Payment Verification Required - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "payment-verification-needed")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "payment-verification-needed")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send payment verified confirmation to patient
+     */
+    @Async
+    public void sendPaymentVerifiedEmail(String toEmail, String patientName, String amount, String appointmentDetails) {
+        try {
+            Context context = new Context();
+            context.setVariable("patientName", patientName);
+            context.setVariable("amount", amount);
+            context.setVariable("appointmentDetails", appointmentDetails);
+
+            String htmlContent = templateEngine.process("email/payment-verified", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Payment Verified - HealthLink",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "payment-verified")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "payment-verified")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send generic email with template
+     */
+    @Async
+    public void sendTemplatedEmail(String toEmail, String subject, String templateName, Map<String, Object> variables) {
+        try {
+            Context context = new Context();
+            context.setVariables(variables);
+
+            String htmlContent = templateEngine.process("email/" + templateName, context);
+
+            sendHtmlEmail(toEmail, subject, htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", templateName)
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", templateName)
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send simple text email
+     */
+    @Async
+    public void sendSimpleEmail(String toEmail, String subject, String body) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(toEmail);
+            message.setSubject(subject);
+            message.setText(body);
+
+            mailSender.send(message);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("type", "simple")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("type", "simple")
+                .withMasked("email", toEmail)
+                .log();
+        }
+    }
+
+    /**
+     * Send HTML email
+     */
+    private void sendHtmlEmail(String toEmail, String subject, String htmlContent) throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+        try {
+            helper.setFrom(fromEmail, fromName);
+        } catch (java.io.UnsupportedEncodingException e) {
+            log.error("Invalid email encoding", e);
+            throw new RuntimeException("Failed to set email sender", e);
+        }
+        helper.setTo(toEmail);
+        helper.setSubject(subject);
+        helper.setText(htmlContent, true);
+
+        mailSender.send(message);
+    }
+}

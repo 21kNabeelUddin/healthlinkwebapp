@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Account Approved - HealthLink</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { background: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .logo { color: #2563eb; font-size: 28px; font-weight: bold; }
+        .success-badge { background: #10b981; color: white; display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; margin: 20px 0; }
+        .button { display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; margin: 20px 0; font-weight: bold; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
+        .feature-box { background: #f9fafb; padding: 16px; border-radius: 6px; margin: 16px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🏥 HealthLink</div>
+            <h1>Welcome to HealthLink!</h1>
+            <span class="success-badge">✓ Account Approved</span>
+        </div>
+
+        <p>Dear <strong th:text="${userName}">User</strong>,</p>
+
+        <p>Congratulations! Your <strong th:text="${role}">role</strong> account has been approved and activated.</p>
+
+        <p>You can now log in and start using all the features available to you:</p>
+
+        <div class="feature-box">
+            <h3>Next Steps:</h3>
+            <ol>
+                <li>Log in to your account using your registered email and password</li>
+                <li>Complete your profile information</li>
+                <li>Explore the dashboard and available features</li>
+                <li>Start connecting with patients/doctors (based on your role)</li>
+            </ol>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="https://healthlink.com/login" class="button">Log In Now</a>
+        </div>
+
+        <p>If you have any questions or need assistance, our support team is here to help.</p>
+
+        <div class="footer">
+            <p>© 2025 HealthLink Platform. All rights reserved.</p>
+            <p>Need help? Contact us at support@healthlink.com</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,157 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.8'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.healthlink'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        // Using Java 21 LTS for production stability
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    
+    // Database
+    implementation 'org.postgresql:postgresql:42.7.4' // OK (matches latest as of spec date)
+    
+    // Security & JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+    implementation 'io.jsonwebtoken:jjwt-impl:0.13.0'
+    implementation 'io.jsonwebtoken:jjwt-jackson:0.13.0'
+    
+    // OpenAPI Documentation
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0' // Updated
+    
+    // MapStruct for DTO mapping
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+    
+    // Lombok (Java 21 compatible)
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+    
+    // AWS S3 for medical records
+    implementation 'software.amazon.awssdk:s3:2.29.28'
+    implementation 'software.amazon.awssdk:sts:2.29.28'
+    implementation 'io.minio:minio:8.6.0'
+    
+    // ElasticSearch
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    
+    // Redis (Lettuce client included in starter)
+    implementation 'io.lettuce:lettuce-core:6.5.2.RELEASE'
+    
+    // Rate Limiting
+    implementation 'com.bucket4j:bucket4j-core:8.10.1'
+    implementation 'com.bucket4j:bucket4j-redis:8.10.1'
+    
+    // HTTP Client for external APIs
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
+    implementation 'org.apache.httpcomponents.core5:httpcore5:5.3.1'
+    
+    // PDF Generation
+    implementation 'org.apache.pdfbox:pdfbox:3.0.3' // retained
+    // OpenPDF for richer table/text layout in medical record exports
+    implementation 'com.github.librepdf:openpdf:1.3.39'
+    
+    // Utilities
+    implementation 'org.apache.commons:commons-lang3:3.17.0'
+    implementation 'commons-codec:commons-codec:1.17.2'
+    implementation 'com.google.guava:guava:33.4.0-jre'
+    implementation 'org.modelmapper:modelmapper:3.2.1'
+    
+    // Jackson for JSON
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    implementation 'com.fasterxml.jackson.module:jackson-module-parameter-names'
+    
+    // Monitoring
+    implementation 'io.micrometer:micrometer-registry-prometheus:1.14.13'
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel:1.4.3'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.43.0'
+
+    // Structured JSON logging
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.0'
+    
+    // Load .env files automatically
+    implementation 'io.github.cdimascio:dotenv-java:3.0.2'
+
+    // RabbitMQ for async workers (webhooks, notifications)
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+    // Internationalization utilities (message interpolation enhancements)
+
+
+    // Caffeine (local in-memory caching for OpenFDA responses before Redis write-through)
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
+    // Encryption (JCA extensions if needed)
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78'
+
+    // JWT (already present) - add Nimbus for future token introspection if required
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.48'
+    
+    // Firebase Admin SDK for push notifications
+    implementation 'com.google.firebase:firebase-admin:9.2.0'
+    
+    // Thymeleaf for email and PDF templates
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    
+    // iText for HTML to PDF conversion
+    implementation 'com.itextpdf:html2pdf:4.0.5'
+    
+    // Sentry for error tracking
+    implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.0.0'
+    // Logback conditional processing requires Janino
+    implementation 'org.codehaus.janino:janino:3.1.12'
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:testcontainers:1.20.4'
+    testImplementation 'org.testcontainers:postgresql:1.20.4'
+    testImplementation 'org.testcontainers:elasticsearch:1.20.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+    testImplementation 'io.rest-assured:rest-assured:5.5.0'
+    testImplementation 'com.h2database:h2:2.3.232'
+    testImplementation 'org.mockito:mockito-inline:5.2.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Ensure MapStruct and Lombok work together
+tasks.withType(JavaCompile) {
+    options.compilerArgs += [
+        '-Amapstruct.defaultComponentModel=spring',
+        '-Amapstruct.unmappedTargetPolicy=WARN'
+    ]
+}

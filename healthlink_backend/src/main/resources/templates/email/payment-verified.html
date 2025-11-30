@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Verified - HealthLink</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { background: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .logo { color: #2563eb; font-size: 28px; font-weight: bold; }
+        .success-icon { font-size: 64px; margin: 20px 0; }
+        .success-box { background: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; border-radius: 6px; margin: 24px 0; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
+        .button { display: inline-block; background: #10b981; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; margin: 20px 0; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🏥 HealthLink</div>
+            <div class="success-icon">✅</div>
+            <h1>Payment Verified!</h1>
+        </div>
+
+        <p>Dear <strong th:text="${patientName}">Patient</strong>,</p>
+
+        <p>Great news! Your payment has been successfully verified and processed.</p>
+
+        <div class="success-box">
+            <h3 style="margin-top: 0;">💳 Payment Summary</h3>
+            <p><strong>Amount:</strong> PKR <span th:text="${amount}">5,000</span></p>
+            <p><strong>Appointment:</strong> <span th:text="${appointmentDetails}">Dr. Smith - Jan 15, 2025</span></p>
+            <p><strong>Status:</strong> ✓ Verified & Confirmed</p>
+        </div>
+
+        <p>Your appointment is now <strong>confirmed</strong>. You will receive a separate email with appointment details and reminders.</p>
+
+        <div style="background: #eff6ff; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">📋 What's Next?</h3>
+            <ul style="margin: 8px 0;">
+                <li>Check your email for appointment confirmation</li>
+                <li>You'll receive a reminder 24 hours before</li>
+                <li>View your receipt in your account dashboard</li>
+                <li>Download receipt PDF if needed</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="https://healthlink.com/appointments" class="button">View Appointment</a>
+        </div>
+
+        <div class="footer">
+            <p>© 2025 HealthLink Platform. All rights reserved.</p>
+            <p>Keep this email for your records.</p>
+        </div>
+    </div>
+</body>
+</html>
