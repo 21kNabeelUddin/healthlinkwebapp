@@ -15,6 +15,7 @@ import jakarta.annotation.PostConstruct;
  * Avoids dynamic mapping surprises and enforces predictable tokenization.
  */
 @Configuration
+@ConditionalOnProperty(prefix = "spring.data.elasticsearch.repositories", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class ElasticsearchConfig {
 
     private static final SafeLogger log = SafeLogger.getLogger(ElasticsearchConfig.class);
@@ -25,7 +26,6 @@ public class ElasticsearchConfig {
     }
 
     @PostConstruct
-    @ConditionalOnProperty(prefix = "spring.data.elasticsearch", name = "repositories.enabled", havingValue = "true", matchIfMissing = true)
     public void ensureIndices() {
         try {
             IndexCoordinates coords = IndexCoordinates.of("doctors");

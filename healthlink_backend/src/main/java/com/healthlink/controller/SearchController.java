@@ -5,6 +5,7 @@ import com.healthlink.domain.search.service.DoctorSearchService;
 import com.healthlink.dto.ResponseEnvelope;
 import com.healthlink.search.SearchIndexService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/search")
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "spring.data.elasticsearch.repositories", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class SearchController {
     private final SearchIndexService searchIndexService;
     private final DoctorSearchService doctorSearchService;

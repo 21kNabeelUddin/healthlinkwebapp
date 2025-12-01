@@ -21,7 +21,7 @@ import java.time.Duration;
  */
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "healthlink.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "healthlink.rate-limit.enabled", havingValue = "true", matchIfMissing = false)
 public class RateLimitConfig {
 
         @Value("${spring.data.redis.host:localhost}")

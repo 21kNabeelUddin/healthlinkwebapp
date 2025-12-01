@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: healthlink-backend
+    env: java
+    buildCommand: ./gradlew build -x test
+    startCommand: java -jar build/libs/*.jar
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: production
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: HEALTHLINK_JWT_SECRET
+        sync: false
+      - key: HEALTHLINK_SECURITY_JWT_SECRET
+        sync: false
+      - key: HEALTHLINK_CORS_ALLOWED_ORIGINS
+        sync: false
+

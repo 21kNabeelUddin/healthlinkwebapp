@@ -12,6 +12,7 @@ import com.healthlink.domain.organization.repository.ServiceOfferingRepository;
 import com.healthlink.domain.user.entity.Doctor;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ import java.util.stream.StreamSupport;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "spring.data.elasticsearch.repositories", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class DoctorSearchService {
 
     private final DoctorSearchRepository searchRepository;

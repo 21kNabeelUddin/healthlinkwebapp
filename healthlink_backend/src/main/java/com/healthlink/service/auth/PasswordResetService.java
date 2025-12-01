@@ -204,9 +204,9 @@ public class PasswordResetService {
     }
 
     /**
-     * Inner class to represent password reset token
+     * Inner class to represent password reset token.
+     * Avoids Lombok so that all methods used above are explicitly defined.
      */
-    @lombok.Data
     private static class PasswordResetToken {
         private final String token;
         private final UUID userId;
@@ -214,6 +214,38 @@ public class PasswordResetService {
         private final String otp;
         private final Instant expiresAt;
         private boolean otpVerified = false;
+
+        public PasswordResetToken(String token, UUID userId, String email, String otp, Instant expiresAt) {
+            this.token = token;
+            this.userId = userId;
+            this.email = email;
+            this.otp = otp;
+            this.expiresAt = expiresAt;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public UUID getUserId() {
+            return userId;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public String getOtp() {
+            return otp;
+        }
+
+        public boolean isOtpVerified() {
+            return otpVerified;
+        }
+
+        public void setOtpVerified(boolean otpVerified) {
+            this.otpVerified = otpVerified;
+        }
 
         public boolean isExpired() {
             return Instant.now().isAfter(expiresAt);

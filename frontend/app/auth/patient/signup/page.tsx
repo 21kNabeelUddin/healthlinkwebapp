@@ -23,7 +23,7 @@ interface SignupForm {
 export default function PatientSignup() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm<SignupForm>();
+  const { register, handleSubmit, formState: { errors }, setError } = useForm<SignupForm>();
 
   const onSubmit = async (data: SignupForm) => {
     setIsLoading(true);
@@ -39,16 +39,35 @@ export default function PatientSignup() {
         role: 'PATIENT',
       });
 
-      if (response.accessToken && response.user) {
-        // Registration successful, now send OTP for email verification
+      // For patients, backend does NOT return tokens until email is verified.
+      // A successful response with a user object means registration succeeded.
+      if (response?.user) {
         await authApi.sendOtp(data.email);
-        toast.success('Registration successful! Please verify your email.');
+        toast.success('Registration successful! We\'ve sent a verification code to your email.');
         router.push(`/auth/patient/verify-otp?email=${encodeURIComponent(data.email)}`);
       } else {
         toast.error('Registration failed');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || error.message || 'Signup failed');
+      const status = error?.response?.status;
+      const backendMessage: string | undefined =
+        error?.response?.data?.message || error?.response?.data?.error;
+
+      if (status === 409) {
+        const message =
+          backendMessage ||
+          'An account with this email already exists. Please log in or use a different email.';
+        // Show message next to the email field as well
+        setError('email', {
+          type: 'conflict',
+          message,
+        });
+        toast.error(message);
+      } else if (status === 400) {
+        toast.error(backendMessage || 'Please check the form for validation errors.');
+      } else {
+        toast.error(backendMessage || error.message || 'Signup failed');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -76,15 +95,30 @@ export default function PatientSignup() {
           error={errors.email?.message}
         />
 
-        <Input
-          label="Password"
-          type="password"
-          {...register('password', {
-            required: 'Password is required',
-            minLength: { value: 8, message: 'Password must be at least 8 characters' },
-          })}
-          error={errors.password?.message}
-        />
+        <div className="space-y-1">
+          <Input
+            label="Password"
+            type="password"
+            {...register('password', {
+              required: 'Password is required',
+              minLength: {
+                value: 8,
+                message: 'Password must be at least 8 characters long',
+              },
+              pattern: {
+                value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).+$/,
+                message:
+                  'Password must include at least one uppercase letter, one lowercase letter, one number, and one special character.',
+              },
+            })}
+            error={errors.password?.message}
+          />
+          {!errors.password && (
+            <p className="text-xs text-gray-500">
+              Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.
+            </p>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input

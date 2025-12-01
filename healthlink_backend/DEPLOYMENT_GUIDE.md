@@ -55,44 +55,28 @@ cd healthlink_backend
 ./gradlew clean build -x test
 ```
 
-### 3. Run with Docker Compose
+### 3. Configure External Services
 
-We provide a `docker-compose.yml` to spin up all dependencies (PostgreSQL, Redis, RabbitMQ, Elasticsearch, MinIO, Janus, Coturn).
+The application uses external services for production. Configure the following in your `.env` file:
 
-```bash
-# Start all services
-docker-compose up -d
+**Required Services:**
+- **PostgreSQL**: Use Neon (recommended) or any PostgreSQL 18.1+ database
+  - Set `SPRING_DATASOURCE_URL` in `.env` (e.g., `jdbc:postgresql://ep-xxx.neon.tech:5432/neondb?sslmode=require`)
+  - Set `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`
 
-# Check service health
-docker ps --filter "name=healthlink" --format "table {{.Names}}\t{{.Status}}"
-
-# View logs for specific service
-docker logs healthlink-backend --tail 50
-docker logs healthlink-coturn --tail 50
-```
-
-This will start:
-
-- **PostgreSQL 18.1**: Port 5432 (Database)
-- **Redis 8.4.0**: Port 6379 (Caching, rate limiting)
-- **RabbitMQ 4.1**: Port 5672 (Messaging), 15672 (Management UI)
-- **Elasticsearch 9.2**: Port 9200 (Search)
-- **MinIO**: Port 9000 (Object storage), 9001 (Console UI)
-- **Janus Gateway 1.2**: Port 8088 (WebRTC SFU)
-- **Coturn**: Ports 3478 (TURN/STUN), 5349 (TURNS), 49152-49252/udp (Relay)
-- **Prometheus**: Port 9090 (Metrics)
-- **Grafana**: Port 3000 (Dashboards - admin/healthlink_grafana_pass)
-- **Jaeger**: Port 16686 (Distributed tracing)
-- **MailHog**: Port 8025 (Email testing UI)
-- **HealthLink Backend**: Port 8080
+**Optional Services (can be disabled for basic functionality):**
+- **Redis**: For caching and rate limiting (set `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`)
+- **RabbitMQ**: For message queuing (set `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`)
+- **Elasticsearch**: For search features (set `ELASTICSEARCH_URIS`, `ELASTICSEARCH_ENABLED=true`)
+- **MinIO/S3**: For file storage (set `MINIO_ENDPOINT`, `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`)
+- **Mail Service**: For email (set `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`)
 
 **Service Dependencies:**
-- Backend depends on: PostgreSQL, Redis, RabbitMQ, Elasticsearch, MinIO
-- WebRTC calls depend on: Janus, Coturn
-- Observability: Prometheus, Grafana, Jaeger (optional)
+- Backend requires: PostgreSQL (required)
+- Optional: Redis (for rate limiting), RabbitMQ (for async tasks), Elasticsearch (for search)
+- WebRTC: Janus Gateway and TURN server (configure `JANUS_URL`, `TURN_SERVER`, `TURNS_SERVER`)
 
-**Health Checks:**
-All services include health checks that run every 10-30 seconds. Services marked as `(healthy)` in `docker ps` are ready for use.
+**Note:** The application is designed to work without optional services. Rate limiting, search, and message queuing will be disabled if their respective services are not configured.
 
 ### 4. Database Migration
 
@@ -133,68 +117,51 @@ flutter build ios --release
 
 Open `ios/Runner.xcworkspace` in Xcode to archive and publish.
 
-## WebRTC Configuration (Coturn TURN Server)
+## WebRTC Configuration (TURN Server)
 
-### Coturn Setup
+### TURN Server Setup
 
-The Coturn TURN server is essential for WebRTC calls when clients are behind NAT/firewalls. Configuration is in `docker/coturn/turnserver.conf`.
+A TURN server is essential for WebRTC calls when clients are behind NAT/firewalls. You can use:
+- **Self-hosted Coturn**: Deploy on a server with public IP
+- **Cloud TURN services**: Twilio, Metered, or other TURN-as-a-Service providers
 
-**Key Settings:**
-- **Listening Ports**: 3478 (TURN/STUN), 5349 (TURNS with TLS)
-- **Relay Ports**: 49152-49252 (100 UDP ports for development)
-- **Authentication**: Long-term credentials (username: healthlink, password: healthlink_turn_secret_2025)
-- **Relay Threads**: 50 (adjustable based on expected concurrent calls)
+**Configuration:**
+Set the following in your `.env` file:
+```bash
+TURN_SERVER=turn:your-turn-server.com:3478
+TURNS_SERVER=turns:your-turn-server.com:5349
+TURN_USERNAME=your_username
+TURN_CREDENTIAL=your_password
+```
 
 **Production Recommendations:**
-1. **TLS Certificates**: Configure TLS for TURNS (port 5349):
-   ```
-   cert=/etc/coturn/certs/turn_server_cert.pem
-   pkey=/etc/coturn/certs/turn_server_pkey.pem
-   ```
-   Use Let's Encrypt or corporate CA certificates.
-
-2. **Expand Relay Ports**: Increase to full range (49152-65535) on Linux:
-   ```yaml
-   ports:
-     - "49152-65535:49152-65535/udp"
-   ```
-   Windows has reserved port conflicts—use 500-1000 ports for dev.
-
-3. **External IP Detection**: Coturn auto-detects external IP (`DETECT_EXTERNAL_IP=yes`). Verify in logs:
-   ```bash
-   docker logs healthlink-coturn | grep "External IP"
-   ```
-
-4. **Time-Limited Credentials**: Replace static credentials with HMAC-based tokens:
-   - Use `static-auth-secret` instead of user/password
-   - Generate tokens with TTL in VideoCallService
-   - Reference: https://tools.ietf.org/html/rfc5766#section-15.4
+1. **Use TURNS (TLS)**: Prefer `turns://` URLs for secure connections
+2. **Time-Limited Credentials**: Use HMAC-based tokens instead of static credentials
+3. **Multiple TURN Servers**: Configure multiple ICE servers for redundancy
+4. **STUN Server**: Google's public STUN server is used by default (`stun:stun.l.google.com:19302`)
 
 **Testing Connectivity:**
 ```bash
-# Check Coturn logs
-docker logs healthlink-coturn --tail 50
-
-# Expected output:
-# 0: : INFO: relay 127.0.0.1 addr 0.0.0.0:3478, TURN listener addr 0.0.0.0:3478
-# 0: : INFO: Number of relay threads: 50
-
-# Test from host (requires coturn-utils)
-turnutils_uclient -v -u healthlink -w healthlink_turn_secret_2025 coturn
+# Test TURN server (requires coturn-utils or similar tool)
+turnutils_uclient -v -u your_username -w your_password your-turn-server.com
 ```
-
-**Common Issues:**
-- **Port Binding Errors**: Windows reserves many UDP ports. Reduce relay range to 100-200 ports for dev.
-- **Health Check Unhealthy**: Container may report unhealthy if `turnutils_uclient` not available. Verify logs show "TCP/UDP listeners" active.
-- **NAT Traversal Failures**: Ensure firewall allows UDP on relay port range (49152-49252).
 
 ## Troubleshooting
 
-- **Database Connection Refused**: Ensure Docker containers are running and ports are not blocked. Check `docker-compose logs postgres`.
+- **Database Connection Refused**: 
+  - Verify `SPRING_DATASOURCE_URL` is set correctly in `.env` file
+  - Check that your Neon database (or PostgreSQL instance) is accessible
+  - Ensure SSL is enabled if required: `?sslmode=require` in the JDBC URL
+  - Test connection: `psql "your-connection-string"`
+
 - **JWT Errors**: Verify `JWT_SECRET` is identical in all instances and meets length requirements (32+ bytes).
-- **File Upload Failures**: Check MinIO configuration and bucket permissions. Ensure `MINIO_ENDPOINT` is reachable from the backend container.
+
+- **File Upload Failures**: 
+  - Check MinIO/S3 configuration and bucket permissions
+  - Ensure `MINIO_ENDPOINT` is set correctly in `.env`
+  - Verify `AWS_ACCESS_KEY` and `AWS_SECRET_KEY` are correct
   ```bash
-  # Check MinIO health
+  # Check MinIO health (if using local MinIO)
   curl http://localhost:9000/minio/health/live
   
   # Access MinIO console
@@ -202,14 +169,25 @@ turnutils_uclient -v -u healthlink -w healthlink_turn_secret_2025 coturn
   # Username: healthlink_minio
   # Password: healthlink_minio_password_123
   ```
-- **RabbitMQ Connection Issues**: Verify RabbitMQ management UI accessible at http://localhost:15672 (healthlink/healthlink_rabbit_pass).
+- **RabbitMQ Connection Issues**: 
+  - Verify `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_DEFAULT_USER`, and `RABBITMQ_DEFAULT_PASS` are set correctly
+  - Check that RabbitMQ service is accessible from your backend
+  - If using cloud RabbitMQ, verify the connection string format
+
 - **WebRTC Call Failures**: 
-  - Check Janus Gateway logs: `docker logs healthlink-janus --tail 50`
-  - Verify Coturn is running and listening on ports 3478, 5349
+  - Verify `JANUS_URL` is set correctly (if using Janus Gateway)
+  - Check `TURN_SERVER` and `TURNS_SERVER` configuration
   - Test STUN server: `stun:stun.l.google.com:19302` (should always work)
   - Check browser console for ICE candidate gathering errors
-- **Rate Limiting Errors (429)**: Redis required for Bucket4j rate limiting. Verify Redis container healthy.
-- **Elasticsearch Not Available**: If search features fail, check `docker logs healthlink-elasticsearch`. Elasticsearch requires 4GB RAM.
+
+- **Rate Limiting Errors (429)**: 
+  - Redis is required for Bucket4j rate limiting
+  - Set `RATE_LIMIT_ENABLED=true` and configure `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
+  - Or disable rate limiting: `RATE_LIMIT_ENABLED=false`
+
+- **Elasticsearch Not Available**: 
+  - Set `ELASTICSEARCH_ENABLED=true` and configure `ELASTICSEARCH_URIS`
+  - Or disable search features: `ELASTICSEARCH_ENABLED=false` (default)
 
 ## Security Notes
 
@@ -224,7 +202,7 @@ turnutils_uclient -v -u healthlink -w healthlink_turn_secret_2025 coturn
 - **Rate Limiting**: Enable rate limiting in production (`healthlink.rate-limit.enabled=true`). Default: 100 requests/minute/user.
 - **CORS**: Update `allowed-origins` in SecurityConfig to whitelist only your mobile app domains.
 - **Database Encryption**: Enable PostgreSQL SSL/TLS (`ssl=true` in JDBC URL) and encrypt database backups.
-- **Network Isolation**: Use Docker networks to isolate backend, database, and external services. Only expose necessary ports.
+- **Network Security**: Use firewall rules to restrict access to database and internal service ports. Only expose necessary ports (e.g., 8080 for the backend API).
 - **Secrets Management**: Do not commit `.env` files or credentials to version control. Use environment-specific secrets injection.
 
 ### PHI Compliance (HIPAA-like)

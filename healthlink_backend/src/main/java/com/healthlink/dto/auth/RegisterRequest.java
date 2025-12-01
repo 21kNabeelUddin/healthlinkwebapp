@@ -33,6 +33,10 @@ public class RegisterRequest {
     @Builder.Default
     private String preferredLanguage = "en";
     
+    // Patient-specific fields
+    private String dateOfBirth;  // ISO date string (e.g., "2025-11-05T00:00:00")
+    private String address;
+    
     // Role-specific fields
     private String pmdcId;  // For doctors
     private String pakistanOrgNumber;  // For organizations

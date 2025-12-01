@@ -267,6 +267,22 @@ public class AuthenticationService {
         switch (request.getRole()) {
             case PATIENT -> {
                 Patient patient = new Patient();
+                // Set patient-specific fields
+                if (request.getDateOfBirth() != null && !request.getDateOfBirth().isEmpty()) {
+                    try {
+                        // Parse ISO date string (e.g., "2025-11-05T00:00:00" or "2025-11-05")
+                        String dateStr = request.getDateOfBirth();
+                        if (dateStr.contains("T")) {
+                            dateStr = dateStr.substring(0, dateStr.indexOf("T"));
+                        }
+                        patient.setDateOfBirth(java.time.LocalDate.parse(dateStr));
+                    } catch (Exception e) {
+                        // Invalid date format - ignore and continue without dateOfBirth
+                    }
+                }
+                if (request.getAddress() != null && !request.getAddress().isEmpty()) {
+                    patient.setAddress(request.getAddress());
+                }
                 user = patient;
                 // Auto-approve patients
                 user.setApprovalStatus(ApprovalStatus.APPROVED);

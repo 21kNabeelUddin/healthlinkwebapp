@@ -9,6 +9,7 @@ import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,6 +36,7 @@ import java.util.UUID;
  * - Content type and size validation before upload
  */
 @Service
+@ConditionalOnProperty(prefix = "healthlink.storage", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class MinioStorageService {

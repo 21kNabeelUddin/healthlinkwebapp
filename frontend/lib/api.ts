@@ -37,14 +37,61 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for token refresh
+// Helper to normalize API error messages so the UI doesn't show raw "Request failed with status code 403"
+export function getUserFriendlyError(error: any, fallback: string): string {
+  const status = error?.response?.status as number | undefined;
+  const backendMessage: string | undefined =
+    error?.response?.data?.message || error?.response?.data?.error || error?.response?.data?.detail;
+
+  if (backendMessage) {
+    return backendMessage;
+  }
+
+  switch (status) {
+    case 400:
+      return 'Some of the data you entered is not valid. Please fix the highlighted fields and try again.';
+    case 401:
+      return 'You need to log in again to continue.';
+    case 403:
+      return 'You are not allowed to perform this action. Your account may not be verified or approved yet.';
+    case 404:
+      return 'The requested resource could not be found.';
+    case 409:
+      return 'This action conflicts with existing data (for example, the record already exists).';
+    case 429:
+      return 'Too many requests. Please wait a moment and try again.';
+    case 500:
+      return 'The server encountered an error. Please try again in a moment.';
+    default:
+      return fallback;
+  }
+}
+
+// Helper to unwrap our backend's ResponseEnvelope<T> if present
+function unwrapResponse<T = any>(raw: any): T {
+  if (raw && typeof raw === 'object' && 'data' in raw) {
+    // Most of our backend responses are shaped as { success, data, message }
+    return (raw as any).data ?? raw;
+  }
+  return raw;
+}
+
+// Response interceptor for token refresh and attaching user-friendly messages
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+
+    // Attach a friendly message for the UI to use
+    (error as any).userMessage = getUserFriendlyError(
+      error,
+      error?.message || 'Something went wrong while talking to the server.'
+    );
+
+    // Auto-refresh on 401 once
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
       if (refreshToken) {
         try {
           const response = await api.post('/api/v1/auth/refresh', null, {
@@ -55,16 +102,20 @@ api.interceptors.response.use(
           if (newRefreshToken) {
             localStorage.setItem('refreshToken', newRefreshToken);
           }
+          originalRequest.headers = originalRequest.headers || {};
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
         } catch (refreshError) {
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
-          window.location.href = '/auth/login';
+          if (typeof window !== 'undefined') {
+            window.location.href = '/auth/login';
+          }
         }
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -74,32 +125,33 @@ api.interceptors.response.use(
 export const authApi = {
   register: async (data: SignupRequest) => {
     const response = await api.post('/api/v1/auth/register', data);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   login: async (data: LoginRequest) => {
     const response = await api.post('/api/v1/auth/login', data);
+    const payload = unwrapResponse<LoginResponse & { user?: User }>(response.data);
     // Store tokens
-    if (response.data.accessToken) {
-      localStorage.setItem('token', response.data.accessToken);
-      if (response.data.refreshToken) {
-        localStorage.setItem('refreshToken', response.data.refreshToken);
+    if (payload?.accessToken) {
+      localStorage.setItem('token', payload.accessToken);
+      if ((payload as any).refreshToken) {
+        localStorage.setItem('refreshToken', (payload as any).refreshToken as string);
       }
-      if (response.data.user) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+      if ((payload as any).user) {
+        localStorage.setItem('user', JSON.stringify((payload as any).user));
       }
     }
-    return response.data;
+    return payload;
   },
 
   sendOtp: async (email: string) => {
     const response = await api.post('/api/v1/auth/otp/send', { email });
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   verifyEmail: async (email: string, otp: string) => {
     const response = await api.post('/api/v1/auth/email/verify', { email, otp });
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   refreshToken: async () => {

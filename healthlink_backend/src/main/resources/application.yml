@@ -8,10 +8,11 @@ spring:
   # Supports DATABASE_URL environment variable (Neon PostgreSQL format)
   # Format: postgresql://user:password@host:port/database?params
   # Or use SPRING_DATASOURCE_URL directly (loaded from .env file)
+  # NOTE: SPRING_DATASOURCE_URL is required - set it in .env file or environment variables
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/healthlink}
-    username: ${SPRING_DATASOURCE_USERNAME:healthlink_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:healthlink_password_123}}
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -37,9 +38,9 @@ spring:
   # Redis Configuration
   data:
     redis:
-      host: redis
-      port: 6379
-      password: ${REDIS_PASSWORD:healthlink_redis_pass}
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
       timeout: 60000ms
       lettuce:
         pool:
@@ -48,19 +49,20 @@ spring:
           min-idle: 0
           max-wait: -1ms
 
-    # ElasticSearch Configuration
+    # ElasticSearch Configuration (disabled by default for local development)
     elasticsearch:
       repositories:
-        enabled: true
+        enabled: ${ELASTICSEARCH_ENABLED:false}
 
   elasticsearch:
-    uris: http://elasticsearch:9200
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
     username: ${ELASTICSEARCH_USERNAME:}
     password: ${ELASTICSEARCH_PASSWORD:}
 
   # Mail Configuration
+  # Set MAIL_HOST in .env file (e.g., smtp.gmail.com for Gmail, or localhost for local testing)
   mail:
-    host: ${MAIL_HOST:mailhog}
+    host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
@@ -73,9 +75,10 @@ spring:
             required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
 
   # RabbitMQ Configuration
+  # Set RABBITMQ_HOST in .env file (e.g., localhost for local, or your RabbitMQ service URL)
   rabbitmq:
-    host: rabbitmq
-    port: 5672
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_DEFAULT_USER:healthlink}
     password: ${RABBITMQ_DEFAULT_PASS:healthlink_rabbit_pass}
     virtual-host: healthlink_vhost
@@ -146,14 +149,16 @@ management:
       probability: 1.0
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://jaeger:4318}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
   metrics:
-    export:
-      prometheus:
-        enabled: true
     distribution:
       percentiles-histogram:
         http.server.requests: true
+  # Prometheus metrics export (new property; replaces deprecated management.metrics.export.prometheus.enabled)
+  prometheus:
+    metrics:
+      export:
+        enabled: ${PROMETHEUS_ENABLED:false}
 
 # SpringDoc OpenAPI Configuration
 springdoc:
@@ -178,10 +183,12 @@ healthlink:
     length: 6
     expiration: 300000 # 5 minutes
     max-attempts: 3
+    redis-enabled: ${HEALTHLINK_OTP_REDIS_ENABLED:false}
+    email-enabled: ${HEALTHLINK_OTP_EMAIL_ENABLED:false}
 
-  # Rate Limiting
+  # Rate Limiting (disabled by default for local development without Redis)
   rate-limit:
-    enabled: ${RATE_LIMIT_ENABLED:true}
+    enabled: ${RATE_LIMIT_ENABLED:false}
     requests-per-minute: 60
     otp-requests-per-hour: 5
 
@@ -194,10 +201,12 @@ healthlink:
       secret-key: ${AWS_SECRET_KEY:}
 
   storage:
+    enabled: ${HEALTHLINK_STORAGE_ENABLED:false}
     bucket: ${S3_BUCKET_NAME:healthlink-medical-records}
-    endpoint: ${MINIO_ENDPOINT:http://minio:9000}
-    access-key: ${AWS_ACCESS_KEY:healthlink_minio}
-    secret-key: ${AWS_SECRET_KEY:healthlink_minio_password_123}
+    # Set MINIO_ENDPOINT in .env file (e.g., http://localhost:9000 for local MinIO, or your S3-compatible service URL)
+    endpoint: ${MINIO_ENDPOINT:}
+    access-key: ${AWS_ACCESS_KEY:}
+    secret-key: ${AWS_SECRET_KEY:}
     encryption-enabled: ${STORAGE_ENCRYPTION_ENABLED:true}
 
   # WebRTC Configuration (Janus self-hosted + Coturn TURN)
@@ -207,26 +216,30 @@ healthlink:
       url: ${SIGNALING_URL:ws://localhost:8080/signaling}
     jwt:
       expiration: 3600000 # 1 hour in milliseconds
+    # Set JANUS_URL in .env file if using Janus WebRTC (e.g., http://localhost:8088/janus)
     janus:
-      url: ${JANUS_URL:http://janus:8088/janus}
-      admin-secret: ${JANUS_ADMIN_SECRET:janusoverlord}
+      url: ${JANUS_URL:}
+      admin-secret: ${JANUS_ADMIN_SECRET:}
     # ICE Servers (STUN/TURN)
+    # Set TURN_SERVER and TURNS_SERVER in .env file if using self-hosted TURN server
     ice-servers:
       - urls: ${STUN_SERVER:stun:stun.l.google.com:19302}
         username: ""
         credential: ""
-      - urls: ${TURN_SERVER:turn:coturn:3478}
-        username: ${TURN_USERNAME:healthlink}
-        credential: ${TURN_CREDENTIAL:healthlink_turn_secret_2025}
+      - urls: ${TURN_SERVER:}
+        username: ${TURN_USERNAME:}
+        credential: ${TURN_CREDENTIAL:}
         credentialType: password
-      - urls: ${TURNS_SERVER:turns:coturn:5349}
-        username: ${TURN_USERNAME:healthlink}
-        credential: ${TURN_CREDENTIAL:healthlink_turn_secret_2025}
+      - urls: ${TURNS_SERVER:}
+        username: ${TURN_USERNAME:}
+        credential: ${TURN_CREDENTIAL:}
         credentialType: password
 
   # CORS Configuration
+  # Set HEALTHLINK_CORS_ALLOWED_ORIGINS in production (comma-separated)
+  # Example: https://your-app.vercel.app,https://your-custom-domain.com
   cors:
-    allowed-origins: http://localhost:3000,http://localhost:8081
+    allowed-origins: ${HEALTHLINK_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8081}
     allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
     allowed-headers: "*"
     allow-credentials: true

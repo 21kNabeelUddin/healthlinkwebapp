@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { authApi } from '@/lib/api';
+import { authApi, getUserFriendlyError } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
@@ -39,7 +39,7 @@ export default function PatientLogin() {
         toast.error('Login failed: Invalid response');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || error.message || 'Login failed');
+      toast.error(error.userMessage || getUserFriendlyError(error, 'Login failed'));
     } finally {
       setIsLoading(false);
     }

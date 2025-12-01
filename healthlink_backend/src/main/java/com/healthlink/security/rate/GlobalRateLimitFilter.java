@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  */
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "healthlink.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "healthlink.rate-limit.enabled", havingValue = "true", matchIfMissing = false)
 public class GlobalRateLimitFilter extends OncePerRequestFilter {
 
     private final ProxyManager<String> proxyManager;
