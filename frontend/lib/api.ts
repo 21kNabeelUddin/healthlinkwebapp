@@ -97,20 +97,32 @@ api.interceptors.response.use(
           const response = await api.post('/api/v1/auth/refresh', null, {
             headers: { Authorization: `Bearer ${refreshToken}` },
           });
-          const { accessToken, refreshToken: newRefreshToken } = response.data;
-          localStorage.setItem('token', accessToken);
-          if (newRefreshToken) {
-            localStorage.setItem('refreshToken', newRefreshToken);
+          const payload = unwrapResponse<{ accessToken: string; refreshToken?: string }>(response.data);
+          if (payload.accessToken) {
+            localStorage.setItem('token', payload.accessToken);
+            if (payload.refreshToken) {
+              localStorage.setItem('refreshToken', payload.refreshToken);
+            }
+            originalRequest.headers = originalRequest.headers || {};
+            originalRequest.headers.Authorization = `Bearer ${payload.accessToken}`;
+            return api(originalRequest);
           }
-          originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return api(originalRequest);
-        } catch (refreshError) {
+        } catch (refreshError: any) {
+          console.error('Token refresh failed:', refreshError);
+          // Only redirect if it's not a "token not found" error (might be a timing issue)
+          const errorMessage = refreshError?.response?.data?.message || refreshError?.message || '';
+          if (errorMessage.includes('not found') || errorMessage.includes('Invalid refresh token')) {
+            // Token might not be ready yet, just clear and let user retry login
+            console.warn('Refresh token validation failed, clearing auth state');
+          }
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
           if (typeof window !== 'undefined') {
-            window.location.href = '/auth/login';
+            // Small delay to prevent immediate redirect on page load
+            setTimeout(() => {
+              window.location.href = '/auth/login';
+            }, 100);
           }
         }
       }
@@ -131,16 +143,31 @@ export const authApi = {
   login: async (data: LoginRequest) => {
     const response = await api.post('/api/v1/auth/login', data);
     const payload = unwrapResponse<LoginResponse & { user?: User }>(response.data);
+
+    // Normalize user shape (backend sends `role` and UUID id)
+    if ((payload as any).user) {
+      const rawUser: any = (payload as any).user;
+      const normalizedRole = (rawUser.role || rawUser.userType) as any;
+      const normalizedUser: any = {
+        ...rawUser,
+        id: String(rawUser.id),
+        userType: normalizedRole,
+        role: normalizedRole,
+      };
+      (payload as any).user = normalizedUser as User;
+
+      // Store user in localStorage
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+    }
+
     // Store tokens
     if (payload?.accessToken) {
       localStorage.setItem('token', payload.accessToken);
       if ((payload as any).refreshToken) {
         localStorage.setItem('refreshToken', (payload as any).refreshToken as string);
       }
-      if ((payload as any).user) {
-        localStorage.setItem('user', JSON.stringify((payload as any).user));
-      }
     }
+
     return payload;
   },
 
@@ -160,13 +187,14 @@ export const authApi = {
     const response = await api.post('/api/v1/auth/refresh', null, {
       headers: { Authorization: `Bearer ${refreshToken}` },
     });
-    if (response.data.accessToken) {
-      localStorage.setItem('token', response.data.accessToken);
-      if (response.data.refreshToken) {
-        localStorage.setItem('refreshToken', response.data.refreshToken);
+    const payload = unwrapResponse<{ accessToken: string; refreshToken?: string }>(response.data);
+    if (payload.accessToken) {
+      localStorage.setItem('token', payload.accessToken);
+      if (payload.refreshToken) {
+        localStorage.setItem('refreshToken', payload.refreshToken);
       }
     }
-    return response.data;
+    return payload;
   },
 
   logout: async () => {
@@ -192,7 +220,8 @@ export const patientApi = {
     return authApi.register(data);
   },
 
-  verifyOtp: async (data: OtpVerificationRequest): Promise<ApiResponse<User>> => {
+  // For doctors we only care if the backend verified the email; endpoint returns a plain string
+  verifyOtp: async (data: OtpVerificationRequest): Promise<string> => {
     return authApi.verifyEmail(data.email, data.otp);
   },
 
@@ -285,17 +314,19 @@ export const appointmentsApi = {
   list: async (status?: string) => {
     const params = status ? { status } : {};
     const response = await api.get('/api/v1/appointments', { params });
-    return response.data;
+    const data = unwrapResponse<Appointment[]>(response.data);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
   },
 
   getById: async (id: string) => {
     const response = await api.get(`/api/v1/appointments/${id}`);
-    return response.data;
+    return unwrapResponse<Appointment>(response.data);
   },
 
   create: async (data: any) => {
     const response = await api.post('/api/v1/appointments', data);
-    return response.data;
+    return unwrapResponse<Appointment>(response.data);
   },
 
   reschedule: async (appointmentId: string, newStartTime: string) => {
@@ -303,13 +334,13 @@ export const appointmentsApi = {
       appointmentId,
       newStartTime,
     });
-    return response.data;
+    return unwrapResponse<Appointment>(response.data);
   },
 
   cancel: async (id: string, reason?: string) => {
     const params = reason ? { reason } : {};
     const response = await api.post(`/api/v1/appointments/${id}/cancel`, null, { params });
-    return response.data;
+    return unwrapResponse<Appointment>(response.data);
   },
 
   checkIn: async (id: string, isPatient: boolean = true) => {
@@ -317,12 +348,12 @@ export const appointmentsApi = {
       ? `/api/v1/appointments/${id}/patient-check-in`
       : `/api/v1/appointments/${id}/staff-check-in`;
     const response = await api.post(endpoint);
-    return response.data;
+    return unwrapResponse<Appointment>(response.data);
   },
 
   complete: async (id: string) => {
     const response = await api.patch(`/api/v1/appointments/${id}/complete`);
-    return response.data;
+    return unwrapResponse<Appointment>(response.data);
   },
 };
 
@@ -331,22 +362,24 @@ export const appointmentsApi = {
 export const prescriptionsApi = {
   create: async (data: any) => {
     const response = await api.post('/api/v1/prescriptions', data);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   getById: async (id: string) => {
     const response = await api.get(`/api/v1/prescriptions/${id}`);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   listForPatient: async (patientId: string) => {
     const response = await api.get(`/api/v1/prescriptions/patient/${patientId}`);
-    return response.data;
+    const data = unwrapResponse<any[]>(response.data);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
   },
 
   checkInteractions: async (data: any) => {
     const response = await api.post('/api/v1/prescriptions/interactions', data);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 };
 
@@ -355,54 +388,56 @@ export const prescriptionsApi = {
 export const paymentsApi = {
   initiate: async (data: any) => {
     const response = await api.post('/api/v1/payments/initiate', data);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   uploadReceipt: async (paymentId: string, receiptUrl: string) => {
     const response = await api.post(`/api/v1/payments/${paymentId}/receipt`, null, {
       params: { receiptUrl },
     });
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   getReceipt: async (paymentId: string) => {
     const response = await api.get(`/api/v1/payments/${paymentId}/receipt`);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   verify: async (data: any) => {
     const response = await api.post('/api/v1/payments/verify', data);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   authorize: async (paymentId: string, notes?: string) => {
     const params = notes ? { notes } : {};
     const response = await api.post(`/api/v1/payments/${paymentId}/authorize`, null, { params });
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   capture: async (paymentId: string, notes?: string) => {
     const params = notes ? { notes } : {};
     const response = await api.post(`/api/v1/payments/${paymentId}/capture`, null, { params });
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   list: async (actorId?: string, isDoctorView: boolean = false) => {
     const params: any = { isDoctorView };
     if (actorId) params.actorId = actorId;
     const response = await api.get('/api/v1/payments', { params });
-    return response.data;
+    const data = unwrapResponse<any[]>(response.data);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
   },
 
   requestRefund: async (id: string) => {
     const response = await api.post(`/api/v1/payments/${id}/refund`);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   completeRefund: async (id: string, notes?: string) => {
     const params = notes ? { notes } : {};
     const response = await api.post(`/api/v1/payments/${id}/refund/complete`, null, { params });
-    return response.data;
+    return unwrapResponse(response.data);
   },
 };
 
@@ -421,12 +456,16 @@ export const facilitiesApi = {
 
   listForDoctor: async (doctorId: string) => {
     const response = await api.get(`/api/v1/facilities/doctor/${doctorId}`);
-    return response.data;
+    const data = unwrapResponse<Clinic[]>(response.data);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
   },
 
   listForOrganization: async (organizationId: string) => {
     const response = await api.get(`/api/v1/facilities/organization/${organizationId}`);
-    return response.data;
+    const data = unwrapResponse<Clinic[]>(response.data);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
   },
 
   update: async (id: string, data: ClinicRequest) => {
@@ -469,22 +508,24 @@ export const analyticsApi = {
 export const medicalRecordsApi = {
   create: async (data: any) => {
     const response = await api.post('/api/v1/medical-records', data);
-    return response.data;
+    return unwrapResponse<MedicalHistory>(response.data);
   },
 
   getById: async (id: string) => {
     const response = await api.get(`/api/v1/medical-records/${id}`);
-    return response.data;
+    return unwrapResponse<MedicalHistory>(response.data);
   },
 
   listForPatient: async (patientId: string) => {
     const response = await api.get(`/api/v1/medical-records/patient/${patientId}`);
-    return response.data;
+    const data = unwrapResponse<MedicalHistory[]>(response.data);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
   },
 
   update: async (id: string, data: any) => {
     const response = await api.put(`/api/v1/medical-records/${id}`, data);
-    return response.data;
+    return unwrapResponse<MedicalHistory>(response.data);
   },
 
   delete: async (id: string) => {
@@ -528,8 +569,20 @@ export const videoCallsApi = {
 // ==================== DOCTOR API ====================
 
 export const doctorApi = {
-  signup: async (data: SignupRequest): Promise<ApiResponse<string>> => {
-    return authApi.register(data);
+  signup: async (data: any): Promise<ApiResponse<string>> => {
+    // Map frontend doctor signup fields to backend RegisterRequest
+    const payload: any = {
+      email: data.email,
+      password: data.password,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      phoneNumber: data.phoneNumber,
+      role: 'DOCTOR',
+      specialization: data.specialization,
+      // Backend expects `pmdcId` for doctors; map from our licenseNumber field
+      pmdcId: data.licenseNumber || data.pmdcId,
+    };
+    return authApi.register(payload);
   },
 
   verifyOtp: async (data: OtpVerificationRequest): Promise<ApiResponse<User>> => {

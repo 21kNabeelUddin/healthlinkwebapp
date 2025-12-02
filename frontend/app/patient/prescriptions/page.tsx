@@ -50,10 +50,13 @@ export default function PrescriptionsPage() {
     setIsLoading(true);
     try {
       const data = await prescriptionsApi.listForPatient(user.id.toString());
-      setPrescriptions(data || []);
+      // Ensure we always have an array, even if API returns unexpected format
+      setPrescriptions(Array.isArray(data) ? data : []);
     } catch (error: any) {
       toast.error('Failed to load prescriptions');
       console.error('Prescriptions load error:', error);
+      // Prevent follow-up issues by resetting to empty
+      setPrescriptions([]);
     } finally {
       setIsLoading(false);
     }

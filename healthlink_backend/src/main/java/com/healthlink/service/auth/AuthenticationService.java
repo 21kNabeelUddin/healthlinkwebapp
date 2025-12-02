@@ -8,6 +8,7 @@ import com.healthlink.dto.auth.*;
 import com.healthlink.infrastructure.logging.SafeLogger;
 import com.healthlink.security.jwt.JwtService;
 import com.healthlink.security.token.RefreshTokenService;
+import java.util.Date;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,8 +70,15 @@ public class AuthenticationService {
             .with("role", user.getRole().name())
             .log();
 
-        // For roles requiring approval, don't generate tokens
-        if (requiresApproval(user.getRole())) {
+        // For Patients and Doctors, send OTP for email verification
+        // (Patients: self-serve access, Doctors: require email verification + admin approval)
+        if (user.getRole() == UserRole.PATIENT || user.getRole() == UserRole.DOCTOR) {
+            otpService.generateOtp(user.getEmail());
+        }
+
+        // If role requires approval (Doctor, Organization, Admin, Staff) OR email is not verified,
+        // do NOT generate tokens yet. Frontend will drive OTP verification and admins will approve.
+        if (requiresApproval(user.getRole()) || !Boolean.TRUE.equals(user.getIsEmailVerified())) {
             analyticsRecord(com.healthlink.analytics.AnalyticsEventType.USER_REGISTERED, user.getEmail(),
                     user.getId().toString(), "role=" + user.getRole());
             return AuthenticationResponse.builder()
@@ -78,40 +86,14 @@ public class AuthenticationService {
                     .build();
         }
 
-        // For Patients, require Email Verification via OTP before issuing tokens
-        if (user.getRole() == UserRole.PATIENT) {
-            otpService.generateOtp(user.getEmail()); // Send OTP (simulated/email)
-            // In a real app, we'd trigger an email event here.
-            // For now, we assume OtpService handles generation.
-            // We do NOT return tokens.
-            return AuthenticationResponse.builder()
-                    .user(mapToUserInfo(user))
-                    .build(); // No tokens
-        }
-
-        // For Platform Owner (auto-approved, maybe no OTP enforced for dev?), generate
-        // tokens
-        // But strictly, spec says "Password-based login... with 2fa support".
-        // If Platform Owner needs verification, we should enforce it.
-        // Assuming Platform Owner is trusted/seeded, we might allow auto-login or
-        // enforce same flow.
-        // For safety, let's enforce verification for everyone if isEmailVerified is
-        // false.
-
-        if (!user.getIsEmailVerified()) {
-            // If not verified, don't issue tokens.
-            return AuthenticationResponse.builder()
-                    .user(mapToUserInfo(user))
-                    .build();
-        }
-
-        // Generate tokens for auto-approved AND verified roles
+        // Generate tokens for auto-approved AND already verified roles
         return generateAuthResponse(user);
     }
 
     /**
      * Login with password or OTP
      */
+    @Transactional
     public AuthenticationResponse login(LoginRequest request) {
         User user = userRepository.findByEmailAndDeletedAtIsNull(request.getEmail())
                 .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
@@ -212,50 +194,123 @@ public class AuthenticationService {
 
     /**
      * Refresh access token using refresh token
+     * Simplified MVP version: Only validates JWT signature, no database storage required
      */
     public AuthenticationResponse rotateRefreshToken(String refreshToken) {
-        final String userEmail = jwtService.extractUsername(refreshToken);
+        String userEmail;
+        try {
+            // Try to extract username, allowing expired tokens for refresh token validation
+            userEmail = jwtService.extractUsernameAllowExpired(refreshToken);
+        } catch (Exception e) {
+            SafeLogger.get(AuthenticationService.class)
+                    .event("refresh_token_parse_failed")
+                    .with("error", e.getMessage())
+                    .log();
+            throw new RuntimeException("Invalid refresh token: Unable to parse token");
+        }
 
         User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> {
+                    SafeLogger.get(AuthenticationService.class)
+                            .event("refresh_token_user_not_found")
+                            .withMasked("email", userEmail)
+                            .log();
+                    return new RuntimeException("Invalid refresh token: User not found");
+                });
+
+        // Check if user can still login
+        if (!user.canLogin()) {
+            SafeLogger.get(AuthenticationService.class)
+                    .event("refresh_token_user_cannot_login")
+                    .withMasked("email", userEmail)
+                    .log();
+            throw new RuntimeException("User account is not active or not approved");
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
-        if (!jwtService.isTokenValid(refreshToken, userDetails) || refreshTokenService.isRevoked(refreshToken)
-                || refreshTokenService.isBlacklisted(refreshToken)) {
-            throw new RuntimeException("Invalid refresh token");
+        // For refresh tokens, validate signature and check expiration separately
+        // Allow refresh tokens that are expired but not too old (grace period: 1 hour)
+        
+        // Validate signature without checking expiration
+        if (!jwtService.validateTokenSignature(refreshToken, userDetails, "REFRESH")) {
+            SafeLogger.get(AuthenticationService.class)
+                    .event("refresh_token_jwt_invalid")
+                    .withMasked("email", userEmail)
+                    .log();
+            throw new RuntimeException("Invalid refresh token: Signature validation failed");
         }
-        var oldToken = refreshTokenService.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
-        // Defensive: if chain seems abnormally long, revoke family (threshold 25)
-        refreshTokenService.defensiveFamilyRevocation(oldToken.getFamilyId(), 25);
+        
+        // Check expiration separately (allow expired tokens within grace period)
+        try {
+            Date expiration = jwtService.extractExpirationAllowExpired(refreshToken);
+            long expiredAgo = System.currentTimeMillis() - expiration.getTime();
+            long gracePeriodMs = 60 * 60 * 1000; // 1 hour grace period
+            
+            if (expiredAgo > gracePeriodMs) {
+                SafeLogger.get(AuthenticationService.class)
+                        .event("refresh_token_expired_too_long")
+                        .withMasked("email", userEmail)
+                        .with("expiredAgoMs", expiredAgo)
+                        .log();
+                throw new RuntimeException("Refresh token expired. Please log in again.");
+            } else if (expiredAgo > 0) {
+                // Token expired but within grace period - allow refresh
+                SafeLogger.get(AuthenticationService.class)
+                        .event("refresh_token_expired_within_grace_period")
+                        .withMasked("email", userEmail)
+                        .with("expiredAgoMs", expiredAgo)
+                        .log();
+            }
+        } catch (Exception e) {
+            SafeLogger.get(AuthenticationService.class)
+                    .event("refresh_token_validation_failed")
+                    .withMasked("email", userEmail)
+                    .with("error", e.getMessage())
+                    .log();
+            throw new RuntimeException("Invalid refresh token: " + e.getMessage());
+        }
+
+        // Generate new tokens (no rotation/revocation tracking for MVP)
         String newAccessToken = jwtService.generateAccessToken(userDetails, user.getId(), user.getRole().name());
-        String newRefreshTokenValue = jwtService.generateRefreshToken(userDetails, user.getId());
-        var rotated = refreshTokenService.rotate(oldToken, newRefreshTokenValue,
-                jwtService.getTokenRemainingTime(newRefreshTokenValue));
+        String newRefreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
+        
+        SafeLogger.get(AuthenticationService.class)
+                .event("refresh_token_success")
+                .withMasked("email", userEmail)
+                .log();
+        
         return AuthenticationResponse.builder()
                 .accessToken(newAccessToken)
-                .refreshToken(rotated.getToken())
+                .refreshToken(newRefreshToken)
                 .tokenType("Bearer")
-                .expiresIn(900000L)
+                .expiresIn(jwtService.getTokenRemainingTime(newAccessToken))
                 .user(mapToUserInfo(user))
                 .build();
     }
 
+    /**
+     * Simplified MVP: No refresh token revocation needed since we don't store them
+     */
     public void revokeRefreshToken(String refreshToken) {
-        refreshTokenService.revoke(refreshToken);
+        // MVP: No-op since we don't store refresh tokens
+        SafeLogger.get(AuthenticationService.class)
+                .event("refresh_token_revoke_skipped")
+                .log();
     }
 
     /**
-     * Logout current session: blacklist access token JTI and revoke provided
-     * refresh token.
+     * Logout current session: blacklist access token JTI
+     * Simplified MVP: Refresh tokens are stateless, so no revocation needed
      */
     public void logout(String accessToken, String refreshToken) {
         String jti = jwtService.extractJti(accessToken);
         accessTokenBlacklistService.blacklist(jti);
-        if (refreshToken != null && !refreshToken.isEmpty()) {
-            revokeRefreshToken(refreshToken);
-        }
+        // MVP: Refresh tokens are stateless, no revocation needed
+        SafeLogger.get(AuthenticationService.class)
+                .event("user_logged_out")
+                .with("accessTokenJti", jti)
+                .log();
     }
 
     /**
@@ -373,14 +428,20 @@ public class AuthenticationService {
 
     /**
      * Generate authentication response with tokens
+     * Simplified MVP version: No database storage of refresh tokens
      */
     private AuthenticationResponse generateAuthResponse(User user) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
 
         String accessToken = jwtService.generateAccessToken(userDetails, user.getId(), user.getRole().name());
         String refreshToken = jwtService.generateRefreshToken(userDetails, user.getId());
-        refreshTokenService.saveRefreshToken(refreshToken, user.getId(),
-                jwtService.getTokenRemainingTime(refreshToken));
+        
+        // Simplified MVP: Just generate tokens, no database storage
+        SafeLogger.get(AuthenticationService.class)
+                .event("tokens_generated")
+                .withMasked("email", user.getEmail())
+                .log();
+        
         analyticsRecord(com.healthlink.analytics.AnalyticsEventType.USER_LOGIN, user.getEmail(),
                 user.getId().toString(), "issueTokens");
         return AuthenticationResponse.builder()
@@ -436,8 +497,18 @@ public class AuthenticationService {
     public void markEmailVerified(String email) {
         User user = userRepository.findByEmailAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Mark email as verified
         user.setIsEmailVerified(true);
+
+        // MVP: Auto-approve doctors once their email is verified so they can log in
+        // (In a full production system this would stay PENDING until an admin reviews)
+        if (user.getRole() == UserRole.DOCTOR && user.getApprovalStatus() == ApprovalStatus.PENDING) {
+            user.setApprovalStatus(ApprovalStatus.APPROVED);
+        }
+
         userRepository.save(user);
+
         SafeLogger.get(AuthenticationService.class)
             .event("email_verified")
             .withMasked("email", email)

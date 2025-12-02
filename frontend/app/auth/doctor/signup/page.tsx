@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { doctorApi } from '@/lib/api';
+import { doctorApi, getUserFriendlyError } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
 import Input from '@/components/ui/Input';
@@ -29,16 +29,16 @@ export default function DoctorSignup() {
   const onSubmit = async (data: SignupForm) => {
     setIsLoading(true);
     try {
-      const response = await doctorApi.signup(data);
+      const response = await doctorApi.signup({
+        ...data,
+        role: 'DOCTOR',
+      } as any);
 
-      if (response.success) {
-        toast.success(response.message);
-        router.push(`/auth/doctor/verify-otp?email=${encodeURIComponent(data.email)}`);
-      } else {
-        toast.error(response.message);
-      }
+      // Backend returns an envelope; treat truthy response as success
+      toast.success('Signup successful. Please check your email for OTP verification.');
+      router.push(`/auth/doctor/verify-otp?email=${encodeURIComponent(data.email)}`);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Signup failed');
+      toast.error(error.userMessage || getUserFriendlyError(error, 'Signup failed'));
     } finally {
       setIsLoading(false);
     }
@@ -66,15 +66,32 @@ export default function DoctorSignup() {
           error={errors.email?.message}
         />
 
-        <Input
-          label="Password"
-          type="password"
-          {...register('password', {
-            required: 'Password is required',
-            minLength: { value: 8, message: 'Password must be at least 8 characters' },
-          })}
-          error={errors.password?.message}
-        />
+        <div className="space-y-1">
+          <Input
+            label="Password"
+            type="password"
+            autoComplete="new-password"
+            {...register('password', {
+              required: 'Password is required',
+              minLength: { value: 8, message: 'Password must be at least 8 characters' },
+              validate: {
+                hasUpper: (v) =>
+                  /[A-Z]/.test(v || '') || 'Password must include at least one uppercase letter',
+                hasLower: (v) =>
+                  /[a-z]/.test(v || '') || 'Password must include at least one lowercase letter',
+                hasNumber: (v) => /\d/.test(v || '') || 'Password must include at least one number',
+                hasSpecial: (v) =>
+                  /[^a-zA-Z0-9 ]/.test(v || '') ||
+                  'Password must include at least one special character',
+              },
+            })}
+            error={errors.password?.message}
+          />
+          <p className="text-xs text-slate-500">
+            Password must be at least 8 characters and include an uppercase letter, lowercase
+            letter, number, and special character.
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
@@ -108,8 +125,15 @@ export default function DoctorSignup() {
         />
 
         <Input
-          label="License Number"
-          {...register('licenseNumber', { required: 'License number is required' })}
+          label="PMDC / License Number"
+          placeholder="e.g. 12345-P"
+          {...register('licenseNumber', {
+            required: 'License number is required',
+            pattern: {
+              value: /^\d{5}-P$/,
+              message: 'License must be in the format 12345-P (5 digits, dash, capital P)',
+            },
+          })}
           error={errors.licenseNumber?.message}
         />
 

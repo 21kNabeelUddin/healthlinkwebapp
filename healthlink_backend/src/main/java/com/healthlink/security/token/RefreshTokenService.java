@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -33,6 +34,7 @@ public class RefreshTokenService {
     /**
      * Store new refresh token with family tracking
      */
+    @Transactional
     public RefreshToken saveRefreshToken(String token, UUID userId, long ttlMillis) {
         RefreshToken rt = new RefreshToken();
         rt.setToken(token);
@@ -43,7 +45,8 @@ public class RefreshTokenService {
         rt.setExpiresAt(OffsetDateTime.now().plusSeconds(ttlMillis / 1000));
 
         RefreshToken saved = repository.save(rt);
-        log.debug("Stored refresh token for user {} with familyId {}", userId, saved.getFamilyId());
+        repository.flush(); // Force immediate flush to database
+        log.info("Stored refresh token for user {} with familyId {} and tokenId {}", userId, saved.getFamilyId(), saved.getId());
         return saved;
     }
 
@@ -127,9 +130,15 @@ public class RefreshTokenService {
 
     /**
      * Check if token is blacklisted in Redis
+     * Returns false if Redis is unavailable (fault-tolerant)
      */
     public boolean isBlacklisted(String token) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey(token)));
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey(token)));
+        } catch (Exception e) {
+            log.warn("Redis unavailable for blacklist check, treating as not blacklisted: {}", e.getMessage());
+            return false; // If Redis is down, don't block token refresh
+        }
     }
 
     /**

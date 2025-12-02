@@ -3,6 +3,7 @@ package com.healthlink.security.token;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,7 @@ public class AccessTokenBlacklistService {
 
     /**
      * Add JTI to blacklist with TTL
+     * Fault-tolerant: Silently fails if Redis is unavailable (MVP mode)
      * 
      * @param jti JWT ID to blacklist
      */
@@ -36,24 +38,36 @@ public class AccessTokenBlacklistService {
             return;
         }
 
-        String key = blacklistKey(jti);
-        Duration ttl = Duration.ofMillis(accessTokenExpiration);
-        redisTemplate.opsForValue().set(key, "1", ttl);
-        log.debug("Blacklisted access token JTI: {} with TTL: {}", jti, ttl);
+        try {
+            String key = blacklistKey(jti);
+            Duration ttl = Duration.ofMillis(accessTokenExpiration);
+            redisTemplate.opsForValue().set(key, "1", ttl);
+            log.debug("Blacklisted access token JTI: {} with TTL: {}", jti, ttl);
+        } catch (DataAccessException e) {
+            log.warn("Redis unavailable, cannot blacklist token: {}", e.getMessage());
+            // Silently fail for MVP - token will expire naturally
+        }
     }
 
     /**
      * Check if JTI is blacklisted
+     * Fault-tolerant: Returns false if Redis is unavailable (MVP mode)
      * 
      * @param jti JWT ID to check
-     * @return true if blacklisted, false otherwise
+     * @return true if blacklisted, false otherwise (or if Redis unavailable)
      */
     public boolean isBlacklisted(String jti) {
         if (jti == null || jti.isBlank()) {
             return true; // Treat invalid JTI as blacklisted
         }
 
-        return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey(jti)));
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey(jti)));
+        } catch (DataAccessException e) {
+            // If Redis is unavailable, treat as not blacklisted for MVP
+            log.warn("Redis unavailable for blacklist check, treating as not blacklisted: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**

@@ -35,7 +35,7 @@ spring:
         "[order_updates]": true
     open-in-view: false
 
-  # Redis Configuration
+  # Redis Configuration (optional for MVP)
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -48,6 +48,10 @@ spring:
           max-idle: 8
           min-idle: 0
           max-wait: -1ms
+  
+  # Disable Spring Cache for MVP (avoids Redis dependency)
+  cache:
+    type: none
 
     # ElasticSearch Configuration (disabled by default for local development)
     elasticsearch:
@@ -82,12 +86,6 @@ spring:
     username: ${RABBITMQ_DEFAULT_USER:healthlink}
     password: ${RABBITMQ_DEFAULT_PASS:healthlink_rabbit_pass}
     virtual-host: healthlink_vhost
-
-  # Cache Configuration
-  cache:
-    type: redis
-    redis:
-      time-to-live: 3600000
 
   # Security
   security:

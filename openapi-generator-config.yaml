@@ -1,0 +1,51 @@
+# OpenAPI Generator Configuration for HealthLink Mobile App (Flutter/Dart)
+# Usage: openapi-generator-cli generate -i healthlink-api.yml -g dart -o mobile_app/lib/generated/api -c openapi-generator-config.yaml
+
+generatorName: dart
+inputSpec: healthlink-api.yml
+outputDir: mobile_app/lib/generated/api
+
+# Flutter/Dart specific options
+additionalProperties:
+  pubName: healthlink_api
+  pubVersion: 1.0.0
+  pubDescription: HealthLink API Client generated from OpenAPI spec
+  pubAuthor: HealthLink Development Team
+  pubHomepage: https://healthlink.com
+  useEnumExtension: true
+  enumUnknownDefaultCase: true
+  serializationLibrary: json_serializable
+  dateLibrary: core
+  nullableFields: true
+  generateDocumentation: true
+  generateExampleCode: false
+
+# Model generation options
+modelPackage: models
+apiPackage: api
+invokerPackage: client
+
+# Files to generate
+filesToGenerate:
+  - models
+  - apis
+  - client
+
+# Template directory (optional, uses default templates)
+# templateDirectory: templates
+
+# Global properties
+globalProperties:
+  models: true
+  apis: true
+  supportingFiles: true
+
+# Reserved words mapping (if needed)
+reservedWordsMappings:
+  class: klass
+  default: default_value
+
+# Import mappings (if needed)
+importMappings:
+  DateTime: dart:core
+

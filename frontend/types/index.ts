@@ -2,12 +2,16 @@
 export type UserType = 'PATIENT' | 'DOCTOR' | 'ADMIN';
 
 export interface User {
-  id: number;
+  // Backend sends UUID string; normalize to string on the frontend
+  id: string;
   email: string;
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  // Normalized role information from backend's `role` field
+  // We store both for backwards compatibility with existing components
   userType: UserType;
+  role?: UserType;
   isVerified: boolean;
   createdAt: string;
   dateOfBirth?: string;

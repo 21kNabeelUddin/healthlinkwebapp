@@ -33,9 +33,13 @@ import java.util.Map;
  */
 @SpringBootApplication(exclude = {
         org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfiguration.class,
-        org.springframework.boot.autoconfigure.web.client.RestClientAutoConfiguration.class
+        org.springframework.boot.autoconfigure.web.client.RestClientAutoConfiguration.class,
+        // Exclude Elasticsearch auto-configuration for MVP (optional dependency)
+        org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration.class,
+        org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration.class,
+        org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration.class
 })
-@EnableCaching
+// Caching disabled for MVP (removed @EnableCaching to avoid Redis dependency)
 @EnableAsync
 @EnableScheduling
 @EnableTransactionManagement

@@ -37,10 +37,13 @@ export default function PaymentsPage() {
     setIsLoading(true);
     try {
       const data = await paymentsApi.list(user?.id?.toString());
-      setPayments(data || []);
+      // Ensure we always have an array, even if API returns unexpected format
+      setPayments(Array.isArray(data) ? data : []);
     } catch (error: any) {
       toast.error('Failed to load payments');
       console.error('Payments load error:', error);
+      // Prevent follow-up issues by resetting to empty
+      setPayments([]);
     } finally {
       setIsLoading(false);
     }

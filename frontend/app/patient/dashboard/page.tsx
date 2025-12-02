@@ -41,11 +41,15 @@ export default function PatientDashboard() {
         medicalRecordsApi.listForPatient(user.id.toString()),
       ]);
 
-      setAppointments(appointmentsData || []);
-      setMedicalHistory(medicalHistoryData || []);
+      // Ensure we always have arrays, even if API returns unexpected format
+      setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
+      setMedicalHistory(Array.isArray(medicalHistoryData) ? medicalHistoryData : []);
     } catch (error: any) {
       toast.error('Failed to load dashboard data');
       console.error('Dashboard load error:', error);
+      // Set empty arrays on error to prevent further errors
+      setAppointments([]);
+      setMedicalHistory([]);
     } finally {
       setIsLoading(false);
     }
@@ -53,12 +57,15 @@ export default function PatientDashboard() {
 
   const upcomingAppointments = useMemo(
     () =>
-      appointments
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(a.appointmentDateTime).getTime() - new Date(b.appointmentDateTime).getTime(),
-        ),
+      Array.isArray(appointments)
+        ? appointments
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(a.appointmentDateTime).getTime() -
+                new Date(b.appointmentDateTime).getTime(),
+            )
+        : [],
     [appointments],
   );
 

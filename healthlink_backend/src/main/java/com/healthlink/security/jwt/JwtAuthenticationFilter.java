@@ -60,7 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
                 // Validate token
                 if (jwtService.isTokenValid(jwt, userDetails)) {
-                    // Per-token revocation check (JTI blacklist)
+                    // Per-token revocation check (JTI blacklist) - fault-tolerant (service handles Redis failures)
                     String jti = jwtService.extractJti(jwt);
                     if (accessTokenBlacklistService.isBlacklisted(jti)) {
                         filterChain.doFilter(request, response);

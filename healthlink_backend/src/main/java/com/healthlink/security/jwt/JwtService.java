@@ -70,6 +70,78 @@ public class JwtService {
     }
 
     /**
+     * Extract username from token, even if expired (for refresh token validation)
+     */
+    public String extractUsernameAllowExpired(String token) {
+        try {
+            return extractUsername(token);
+        } catch (ExpiredJwtException e) {
+            return e.getClaims().getSubject();
+        }
+    }
+
+    /**
+     * Validate token signature and username without checking expiration
+     * Used for refresh token validation where we want to allow expired tokens within grace period
+     */
+    public boolean validateTokenSignature(String token, UserDetails userDetails, String expectedType) {
+        try {
+            String username = extractUsernameAllowExpired(token);
+            
+            // Validate username matches
+            if (!username.equals(userDetails.getUsername())) {
+                log.debug("Token username mismatch: expected={}, actual={}", userDetails.getUsername(), username);
+                return false;
+            }
+            
+            // Validate token type if specified
+            if (expectedType != null) {
+                String tokenType;
+                try {
+                    tokenType = extractTokenType(token);
+                } catch (ExpiredJwtException e) {
+                    tokenType = (String) e.getClaims().get("type");
+                }
+                if (!expectedType.equals(tokenType)) {
+                    log.warn("Token type mismatch: expected={}, actual={} for user={}",
+                            expectedType, tokenType, username);
+                    return false;
+                }
+            }
+            
+            // If we got here, the signature is valid (extractUsernameAllowExpired validates signature)
+            return true;
+            
+        } catch (UnsupportedJwtException e) {
+            log.warn("Unsupported JWT token: {}", e.getMessage());
+            return false;
+        } catch (MalformedJwtException e) {
+            log.warn("Malformed JWT token: {}", e.getMessage());
+            return false;
+        } catch (io.jsonwebtoken.security.SecurityException e) {
+            log.error("JWT signature validation failed: {}", e.getMessage());
+            return false;
+        } catch (IllegalArgumentException e) {
+            log.error("JWT claims string is empty: {}", e.getMessage());
+            return false;
+        } catch (JwtException e) {
+            log.error("JWT validation error: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Extract expiration date from token, even if expired
+     */
+    public Date extractExpirationAllowExpired(String token) {
+        try {
+            return extractExpiration(token);
+        } catch (ExpiredJwtException e) {
+            return e.getClaims().getExpiration();
+        }
+    }
+
+    /**
      * Extract user ID from token
      * 
      * @throws IllegalArgumentException if userId claim is missing or malformed
@@ -250,6 +322,7 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+
 
     /**
      * Get signing key from secret

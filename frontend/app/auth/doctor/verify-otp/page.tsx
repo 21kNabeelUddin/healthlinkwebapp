@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { doctorApi } from '@/lib/api';
+import { doctorApi, getUserFriendlyError } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -29,20 +29,17 @@ export default function DoctorVerifyOtp() {
   const onSubmit = async (data: OtpForm) => {
     setIsLoading(true);
     try {
-      const response = await doctorApi.verifyOtp({
+      const message = await doctorApi.verifyOtp({
         email,
         otp: data.otp,
         userType: 'DOCTOR',
       });
 
-      if (response.success && response.data) {
-        toast.success(response.message);
-        router.push('/auth/doctor/login');
-      } else {
-        toast.error(response.message);
-      }
+      // Backend returns a plain success string (e.g. "Email verified successfully")
+      toast.success(message || 'Email verified successfully');
+      router.push('/auth/doctor/login');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'OTP verification failed');
+      toast.error(error.userMessage || getUserFriendlyError(error, 'OTP verification failed'));
     } finally {
       setIsLoading(false);
     }

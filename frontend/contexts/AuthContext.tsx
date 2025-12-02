@@ -23,10 +23,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = getStoredUser();
+    const storedUser = getStoredUser() as any;
     const storedToken = getStoredToken();
     if (storedUser && storedToken) {
-      setUser(storedUser);
+      // Normalize legacy stored users that may not have `userType` populated
+      const normalizedRole = storedUser.role || storedUser.userType;
+      const normalizedUser: User = {
+        ...storedUser,
+        id: String(storedUser.id),
+        userType: normalizedRole,
+        role: normalizedRole,
+      };
+
+      setUser(normalizedUser);
       setToken(storedToken);
     }
     setIsLoading(false);

@@ -54,6 +54,8 @@ export default function AdminLogin() {
         <Input
           label="Email"
           type="email"
+          name="email"
+          autoComplete="email"
           {...register('email', { required: 'Email is required' })}
           error={errors.email?.message}
         />
@@ -61,6 +63,8 @@ export default function AdminLogin() {
         <Input
           label="Password"
           type="password"
+          name="password"
+          autoComplete="current-password"
           {...register('password', { required: 'Password is required' })}
           error={errors.password?.message}
         />

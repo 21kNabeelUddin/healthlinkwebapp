@@ -1,0 +1,3397 @@
+openapi: 3.0.3
+info:
+  title: HealthLink API
+  version: 1.0.0
+  description: |
+    # HealthLink - Integrated Healthcare Management Platform
+    
+    A comprehensive healthcare application supporting Doctor, Patient, Institution, Staff, Admin, and Platform Owner roles with appointment scheduling, telemedicine, clinical records, and payment management.
+    
+    ## Architecture Overview
+    - **Backend**: Spring Boot 3 + Spring Modulith (Modular Monolith)
+    - **Database**: PostgreSQL 18.1 (Single Schema with Module Prefixes)
+    - **Storage**: SeaweedFS (S3-compatible, encrypted)
+    - **Search**: Elasticsearch
+    - **Cache**: Redis
+    - **Video**: Janus WebRTC Gateway
+    
+    ## Authentication
+    All endpoints require a valid JWT token passed in the `Authorization: Bearer {token}` header, unless otherwise specified.
+    
+  contact:
+    name: HealthLink Development Team
+  license:
+    name: Proprietary
+    url: https://healthlink.com/license
+servers:
+  - url: https://staging.healthlink.com/api/v1
+    description: Staging Environment
+  - url: https://api.healthlink.com/api/v1
+    description: Production
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Patient
+    description: Patient-specific operations
+  - name: Doctor
+    description: Doctor-specific operations
+  - name: Staff
+    description: Staff-specific operations
+  - name: Institution
+    description: Institution-specific operations
+  - name: Admin
+    description: Admin-specific operations
+  - name: Appointment
+    description: Appointment scheduling and management
+  - name: Telehealth
+    description: Video call and remote consultation
+  - name: Clinical
+    description: Medical records and clinical data
+  - name: Billing
+    description: Payment and billing operations
+  - name: Search
+    description: Provider and service discovery
+  - name: Notifications
+    description: Push and in-app notifications
+  - name: Analytics
+    description: Reporting and analytics
+  - name: Legal & Consent
+    description: Legal documents and consent forms
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: User Registration (Patient, Doctor, Institution)
+      description: |
+        Self-signup for Patient, Doctor, or Institution roles.
+        Staff, Admin, and Owner accounts are created via invitations.
+        Returns user info and requires email verification via OTP.
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '200':
+          description: Account created successfully. OTP sent to email for verification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User Login
+      description: |
+        Login for all roles. Returns JWT access token and refresh token.
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Account pending approval or inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/otp/send:
+    post:
+      tags:
+        - Authentication
+      summary: Send OTP
+      description: Send a 6-digit OTP to the specified email for verification.
+      operationId: sendOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OTP sent successfully to user@example.com"
+        '429':
+          description: Too many OTP requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/email/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify Email with OTP
+      description: Verify email address using the received OTP. Marks email as verified.
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email verified successfully"
+        '400':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh Access Token
+      description: |
+        Issue a new access token using a valid refresh token.
+        Implements token rotation for enhanced security.
+      operationId: refreshAccessToken
+      security:
+        - RefreshTokenAuth: []
+      responses:
+        '200':
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Initiate Password Reset
+      description: Send OTP to registered email for password reset (Patient, Doctor, Institution, Staff, Admin).
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: OTP sent to email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset Password
+      description: Reset password using OTP received via email.
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Invalid OTP or weak password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout
+      description: Invalidate the current session and blacklist the access token.
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /patients/profile:
+    get:
+      tags:
+        - Patient
+      summary: Get Patient Profile
+      description: Retrieve the authenticated patient's profile information.
+      operationId: getPatientProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Patient profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Patient
+      summary: Update Patient Profile
+      description: Update patient's personal information, medical history, and family tree.
+      operationId: updatePatientProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /patients/family-medical-tree:
+    get:
+      tags:
+        - Patient
+      summary: Get Family Medical Tree
+      description: Retrieve the patient's family medical tree with hereditary conditions.
+      operationId: getFamilyMedicalTree
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Family tree retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMedicalTree'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Patient
+      summary: Add Family Member to Medical Tree
+      description: Add or update a family member's health information.
+      operationId: addFamilyMember
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyMemberRequest'
+      responses:
+        '201':
+          description: Family member added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /appointments:
+    get:
+      tags:
+        - Appointment
+      summary: List Appointments
+      description: |
+        Retrieve a list of appointments filtered by status, date range, and role-specific criteria.
+        - **Patient**: Can see their own appointments
+        - **Doctor/Staff**: Can see appointments for their clinics
+        - **Admin**: Can see all appointments (anonymized)
+      operationId: listAppointments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - CONFIRMED
+              - IN_PROGRESS
+              - COMPLETED
+              - CANCELED
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Appointments list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Appointment
+      summary: Create Appointment
+      description: |
+        Book a new appointment. Performs validation:
+        - Prevent overlapping bookings for patient
+        - Validate slot availability
+        - Ensure payment configuration exists
+      operationId: createAppointment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+      responses:
+        '201':
+          description: Appointment created (PENDING payment verification)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Invalid slot or conflicting appointment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Slot unavailable or overlapping booking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /appointments/{appointmentId}:
+    get:
+      tags:
+        - Appointment
+      summary: Get Appointment Details
+      description: Retrieve detailed information about a specific appointment.
+      operationId: getAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Appointment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Appointment
+      summary: Update Appointment
+      description: |
+        Reschedule an appointment or update notes.
+        - **Patient**: Can reschedule if open slots available
+        - **Doctor/Staff**: Can add notes and update status
+      operationId: updateAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAppointmentRequest'
+      responses:
+        '200':
+          description: Appointment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /appointments/{appointmentId}/reschedule:
+    post:
+      tags:
+        - Appointment
+      summary: Reschedule Appointment
+      description: |
+        Patient can reschedule their appointment to another available slot.
+      operationId: rescheduleAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleAppointmentRequest'
+      responses:
+        '200':
+          description: Appointment rescheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: New slot unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /appointments/{appointmentId}/cancel:
+    post:
+      tags:
+        - Appointment
+      summary: Cancel Appointment
+      description: |
+        Cancel an appointment. 
+        - **Patient**: Can cancel (no refund policy automated)
+        - **Doctor/Staff**: Can cancel (may trigger dispute for patient refund)
+      operationId: cancelAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelAppointmentRequest'
+      responses:
+        '200':
+          description: Appointment canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          description: Cannot cancel appointment in current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /appointments/{appointmentId}/check-in:
+    post:
+      tags:
+        - Appointment
+      summary: Check-in for Appointment
+      description: |
+        Patient or Staff checks in for the appointment.
+        Early check-in allowed (configurable, default 10 minutes before).
+        Mandatory before starting video call.
+      operationId: checkInAppointment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Check-in successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckInResponse'
+        '400':
+          description: Cannot check in yet (too early)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /appointments/emergency:
+    post:
+      tags:
+        - Appointment
+      summary: Register Emergency Patient
+      description: |
+        Create an urgent appointment record for immediate attention.
+        Bypasses standard payment verification.
+        Accessible by Doctor or Staff only.
+        Flagged as `URGENT` in system.
+      operationId: registerEmergencyPatient
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyPatientRequest'
+      responses:
+        '201':
+          description: Emergency patient registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmergencyPatientResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Only Doctor or Staff can create emergency records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /doctors/practices:
+    get:
+      tags:
+        - Doctor
+      summary: List Doctor's Practices
+      description: Retrieve all practices owned by the authenticated doctor.
+      operationId: listPractices
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of practices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Doctor
+      summary: Create New Practice
+      description: Doctor creates a new practice (business entity).
+      operationId: createPractice
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePracticeRequest'
+      responses:
+        '201':
+          description: Practice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Practice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /practices/{practiceId}/facilities:
+    get:
+      tags:
+        - Doctor
+      summary: List Facilities in Practice
+      description: Retrieve all facilities (clinics/locations) under a practice.
+      operationId: listFacilities
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: practiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of facilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Doctor
+      summary: Create Facility
+      description: Add a new facility (clinic location) to a practice.
+      operationId: createFacility
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: practiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilityRequest'
+      responses:
+        '201':
+          description: Facility created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Facility'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /facilities/{facilityId}/services:
+    get:
+      tags:
+        - Doctor
+      summary: List Services at Facility
+      description: Retrieve all services offered at a specific facility.
+      operationId: listServices
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: facilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Doctor
+      summary: Create Service at Facility
+      description: |
+        Define a new service (e.g., "General Consultation", "Skin Biopsy") at a facility.
+        Doctor or Institution can create services.
+      operationId: createService
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: facilityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /services/{serviceId}/schedules:
+    get:
+      tags:
+        - Doctor
+      summary: Get Service Schedules
+      description: Retrieve all time schedules defined for a service.
+      operationId: listServiceSchedules
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of schedules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Doctor
+      summary: Create Service Schedule
+      description: |
+        Define a weekly schedule template for a service with available time slots.
+        Supports recurring schedules (Mon-Sun, with start/end times).
+      operationId: createServiceSchedule
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScheduleRequest'
+      responses:
+        '201':
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceSchedule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /staff:
+    get:
+      tags:
+        - Staff
+      summary: List Staff Members
+      description: |
+        Retrieve staff members assigned to facilities.
+        Doctor/Institution can view their staff.
+        Admin can view all staff (anonymized).
+      operationId: listStaff
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: facilityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of staff members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Staff
+      summary: Invite Staff Member
+      description: |
+        Doctor or Institution invites a new staff member.
+        Credentials are generated; staff must verify email and set password on first login.
+      operationId: inviteStaff
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteStaffRequest'
+      responses:
+        '201':
+          description: Staff member invited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Email already invited or registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /staff/{staffId}/availability:
+    put:
+      tags:
+        - Staff
+      summary: Toggle Staff Availability
+      description: |
+        Doctor or Institution toggles a staff member's availability for auto-assignment.
+        Staff cannot toggle their own availability (security constraint).
+      operationId: updateStaffAvailability
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStaffAvailabilityRequest'
+      responses:
+        '200':
+          description: Availability updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Staff cannot modify their own availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /providers/search:
+    get:
+      tags:
+        - Search
+      summary: Search Providers
+      description: |
+        Search for doctors and institutions using Elasticsearch.
+        Filters: specialty, location, rating, emergency availability.
+      operationId: searchProviders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Search query (name, specialty, location)
+          schema:
+            type: string
+        - name: specialty
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: minRating
+          in: query
+          schema:
+            type: number
+            minimum: 0
+            maximum: 5
+        - name: isEmergencyAvailable
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchProvidersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /telehealth/start-call:
+    post:
+      tags:
+        - Telehealth
+      summary: Initiate Video Call
+      description: |
+        Doctor initiates a video call for an appointment.
+        Only Doctor can start calls.
+        Returns Janus WebRTC token and session info for participants.
+        Requires all participants (patient, staff if assigned) to check in first.
+      operationId: startVideoCall
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartVideoCallRequest'
+      responses:
+        '200':
+          description: Video call initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoCallResponse'
+        '400':
+          description: Invalid appointment or participants not checked in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Only doctor can start calls
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /telehealth/end-call:
+    post:
+      tags:
+        - Telehealth
+      summary: End Video Call
+      description: Doctor ends the video call and closes the Janus room.
+      operationId: endVideoCall
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndVideoCallRequest'
+      responses:
+        '200':
+          description: Call ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /clinical/records:
+    get:
+      tags:
+        - Clinical
+      summary: Get Medical Records
+      description: |
+        Retrieve medical records for a patient.
+        Patient sees own records; Doctor/Staff sees assigned patient records.
+      operationId: listMedicalRecords
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: recordType
+          in: query
+          schema:
+            type: string
+            enum:
+              - HISTORY
+              - PRESCRIPTION
+              - LAB_RESULT
+              - NOTES
+      responses:
+        '200':
+          description: Medical records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecordListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Clinical
+      summary: Create Medical Record
+      description: |
+        Doctor creates a prescription, note, or lab order.
+        Uploaded files (lab results) are stored in SeaweedFS (encrypted).
+      operationId: createMedicalRecord
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMedicalRecordRequest'
+      responses:
+        '201':
+          description: Record created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /clinical/prescriptions:
+    post:
+      tags:
+        - Clinical
+      summary: Create Prescription
+      description: |
+        Doctor creates a prescription during or after appointment.
+        Includes medications with dosage information.
+        (Removed: OpenFDA drug interaction checks per requirements)
+      operationId: createPrescription
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePrescriptionRequest'
+      responses:
+        '201':
+          description: Prescription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /clinical/lab-tests:
+    post:
+      tags:
+        - Clinical
+      summary: Order Lab Test
+      description: Doctor orders a lab test for the patient.
+      operationId: orderLabTest
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLabTestRequest'
+      responses:
+        '201':
+          description: Lab test ordered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabTest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /clinical/lab-results/upload:
+    post:
+      tags:
+        - Clinical
+      summary: Upload Lab Result
+      description: |
+        Patient uploads lab test results (as encrypted file).
+        File stored in SeaweedFS, metadata linked to appointment.
+      operationId: uploadLabResult
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadLabResultRequest'
+      responses:
+        '201':
+          description: Lab result uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: File size exceeds limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /billing/payment-accounts:
+    get:
+      tags:
+        - Billing
+      summary: Get Payment Accounts
+      description: |
+        Retrieve configured payment accounts.
+        Doctor: Can view own account or institution's configured account.
+        Institution: Can view configured account per doctor or own.
+      operationId: listPaymentAccounts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Payment accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAccountListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Billing
+      summary: Configure Payment Account
+      description: |
+        Doctor or Institution sets payment account details.
+        Account where patient payments are directed.
+      operationId: configurePaymentAccount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurePaymentAccountRequest'
+      responses:
+        '201':
+          description: Payment account configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAccount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /billing/payments/{appointmentId}/receipt:
+    post:
+      tags:
+        - Billing
+      summary: Upload Payment Receipt
+      description: |
+        Patient uploads payment receipt (screenshot or image) for manual verification.
+        File encrypted and stored in SeaweedFS as PHI.
+        Triggers notification to Staff for review.
+      operationId: uploadPaymentReceipt
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadPaymentReceiptRequest'
+      responses:
+        '200':
+          description: Receipt uploaded for verification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentReceiptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: File size exceeds limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /billing/payments/{appointmentId}/verify:
+    post:
+      tags:
+        - Billing
+      summary: Verify Payment
+      description: |
+        Staff, Doctor, or Institution verifies the payment receipt.
+        Approval confirms appointment; Rejection triggers dispute flow.
+      operationId: verifyPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPaymentRequest'
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentVerificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /billing/disputes:
+    get:
+      tags:
+        - Billing
+      summary: List Payment Disputes
+      description: |
+        Retrieve payment disputes in the escalation pipeline.
+        Staff/Doctor: View disputes they created.
+        Admin: View all disputes.
+      operationId: listPaymentDisputes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - OPEN
+              - ESCALATED_TO_DOCTOR
+              - ESCALATED_TO_OWNER
+              - ESCALATED_TO_ADMIN
+              - RESOLVED
+              - LEGAL
+      responses:
+        '200':
+          description: List of disputes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDisputeListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Billing
+      summary: Create Payment Dispute
+      description: |
+        Patient disputes a rejected payment.
+        Initiates escalation: Staff -> Doctor -> Owner -> Admin -> Legal.
+      operationId: createPaymentDispute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentDisputeRequest'
+      responses:
+        '201':
+          description: Dispute created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDispute'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /billing/disputes/{disputeId}/escalate:
+    post:
+      tags:
+        - Billing
+      summary: Escalate Dispute
+      description: |
+        Escalate a dispute to the next level in the chain.
+        Staff escalates to Doctor, Doctor to Owner, Owner to Admin, Admin to Legal.
+      operationId: escalateDispute
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: disputeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscalateDisputeRequest'
+      responses:
+        '200':
+          description: Dispute escalated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDispute'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Cannot escalate from current level
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/approvals:
+    get:
+      tags:
+        - Admin
+      summary: List Pending Approvals
+      description: |
+        Admin views pending doctor and institution approvals.
+        Requires "Pending" status and PMDC/Org# verification.
+      operationId: listPendingApprovals
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - DOCTOR
+              - INSTITUTION
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Pending approvals list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingApprovalListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/approvals/{approvalId}:
+    post:
+      tags:
+        - Admin
+      summary: Approve or Reject Application
+      description: |
+        Admin approves or rejects a pending doctor/institution application.
+        Auto-sends email notification to applicant.
+      operationId: processApproval
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessApprovalRequest'
+      responses:
+        '200':
+          description: Application processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /analytics/dashboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get Analytics Dashboard
+      description: |
+        Retrieve role-specific analytics.
+        Doctor: Revenue, average rating, review count, appointment stats.
+        Institution: Staff/Doctor/Facility/Service performance.
+        Admin: Anonymized system metrics (NO PHI).
+      operationId: getAnalyticsDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsDashboard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /audit/logs:
+    get:
+      tags:
+        - Admin
+      summary: Get Audit Logs
+      description: |
+        Admin views PHI access audit logs for compliance.
+        Logs include: User, Timestamp, Resource, Action (Read/Write/Delete).
+      operationId: getAuditLogs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+            enum:
+              - MEDICAL_RECORD
+              - PRESCRIPTION
+              - LAB_RESULT
+              - PAYMENT_RECEIPT
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /notifications/preferences:
+    get:
+      tags:
+        - Notifications
+      summary: Get Notification Preferences
+      description: Retrieve user's notification configuration (channels, reminder times).
+      operationId: getNotificationPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Notifications
+      summary: Update Notification Preferences
+      description: |
+        User configures notification channels (In-app, Push).
+        Sets reminder times for appointments (default: 1h, 15m, 5m).
+      operationId: updateNotificationPreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationPreferencesRequest'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /legal/consent-forms:
+    get:
+      tags:
+        - Legal & Consent
+      summary: Get Consent Forms
+      description: Retrieve available digital consent forms.
+      operationId: listConsentForms
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Consent forms
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentFormListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /legal/consent-forms/{formId}/sign:
+    post:
+      tags:
+        - Legal & Consent
+      summary: Sign Consent Form
+      description: |
+        Patient signs a digital consent form (required before remote appointment booking).
+        Stores signature and timestamp for audit trail.
+      operationId: signConsentForm
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignConsentFormRequest'
+      responses:
+        '200':
+          description: Consent form signed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentSigningResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    RefreshTokenAuth:
+      type: apiKey
+      in: header
+      name: X-Refresh-Token
+
+  schemas:
+    SignupRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - PATIENT
+            - DOCTOR
+            - INSTITUTION
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        pmdc:
+          type: string
+          description: "Required for DOCTOR role. Format: XXXXX-P"
+        organizationNumber:
+          type: string
+          description: "Required for INSTITUTION role. 7-digit Pakistan Org#"
+        organizationName:
+          type: string
+          description: "Required for INSTITUTION role"
+        officialEmail:
+          type: string
+          format: email
+          description: "Required for INSTITUTION role"
+      required:
+        - role
+        - email
+        - password
+        - firstName
+        - lastName
+
+    SignupResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACTIVE
+        message:
+          type: string
+          example: "OTP sent to your email. Please verify within 10 minutes."
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+      required:
+        - email
+        - password
+
+    OtpRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        otp:
+          type: string
+          description: OTP code (6 digits). Required for verification, optional for sending.
+          minLength: 6
+          maxLength: 6
+      required:
+        - email
+
+    VerifyOtpRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+      required:
+        - email
+        - otp
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token (15m expiry)
+        refreshToken:
+          type: string
+          description: Refresh token (7d expiry)
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum:
+            - PATIENT
+            - DOCTOR
+            - STAFF
+            - INSTITUTION
+            - ADMIN
+            - OWNER
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - PENDING
+            - INACTIVE
+            - SUSPENDED
+
+    PatientProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum:
+            - MALE
+            - FEMALE
+            - OTHER
+        phoneNumber:
+          type: string
+        address:
+          type: string
+        bloodType:
+          type: string
+          enum:
+            - O_PLUS
+            - O_MINUS
+            - A_PLUS
+            - A_MINUS
+            - B_PLUS
+            - B_MINUS
+            - AB_PLUS
+            - AB_MINUS
+        allergies:
+          type: array
+          items:
+            type: string
+        chronicConditions:
+          type: array
+          items:
+            type: string
+        emergencyContact:
+          type: object
+          properties:
+            name:
+              type: string
+            phoneNumber:
+              type: string
+            relationship:
+              type: string
+
+    PatientProfileUpdate:
+      type: object
+      properties:
+        phoneNumber:
+          type: string
+        address:
+          type: string
+        bloodType:
+          type: string
+        allergies:
+          type: array
+          items:
+            type: string
+        chronicConditions:
+          type: array
+          items:
+            type: string
+        emergencyContact:
+          type: object
+          properties:
+            name:
+              type: string
+            phoneNumber:
+              type: string
+            relationship:
+              type: string
+
+    FamilyMedicalTree:
+      type: object
+      properties:
+        patientId:
+          type: string
+          format: uuid
+        familyMembers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FamilyMember'
+
+    FamilyMember:
+      type: object
+      properties:
+        memberId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        relationship:
+          type: string
+          enum:
+            - MOTHER
+            - FATHER
+            - SIBLING
+            - CHILD
+            - GRANDPARENT
+            - AUNT_UNCLE
+            - COUSIN
+            - OTHER
+        heredityConditions:
+          type: array
+          items:
+            type: string
+          example:
+            - "Diabetes"
+            - "Heart Disease"
+        notes:
+          type: string
+
+    FamilyMemberRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        relationship:
+          type: string
+        heredityConditions:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+      required:
+        - name
+        - relationship
+
+    Appointment:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        doctorId:
+          type: string
+          format: uuid
+        facilityId:
+          type: string
+          format: uuid
+        serviceId:
+          type: string
+          format: uuid
+        appointmentDateTime:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          description: Duration in minutes
+        status:
+          type: string
+          enum:
+            - PENDING
+            - CONFIRMED
+            - IN_PROGRESS
+            - COMPLETED
+            - CANCELED
+        appointmentType:
+          type: string
+          enum:
+            - REMOTE
+            - IN_PERSON
+        notes:
+          type: string
+        assignedStaffId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Staff auto-assigned for remote appointments if enabled
+        isEmergency:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateAppointmentRequest:
+      type: object
+      properties:
+        doctorId:
+          type: string
+          format: uuid
+        facilityId:
+          type: string
+          format: uuid
+        serviceId:
+          type: string
+          format: uuid
+        preferredDateTime:
+          type: string
+          format: date-time
+        appointmentType:
+          type: string
+          enum:
+            - REMOTE
+            - IN_PERSON
+      required:
+        - doctorId
+        - facilityId
+        - serviceId
+        - preferredDateTime
+        - appointmentType
+
+    UpdateAppointmentRequest:
+      type: object
+      properties:
+        notes:
+          type: string
+        status:
+          type: string
+          enum:
+            - COMPLETED
+            - CANCELED
+        rescheduledDateTime:
+          type: string
+          format: date-time
+
+    CheckInResponse:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        checkedInAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - CHECKED_IN
+            - READY_FOR_CALL
+
+    EmergencyPatientRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+        address:
+          type: string
+        medicalSummary:
+          type: string
+          description: Brief clinical summary
+        vitals:
+          type: object
+          properties:
+            bloodPressure:
+              type: string
+            heartRate:
+              type: integer
+            temperature:
+              type: number
+            respiratoryRate:
+              type: integer
+      required:
+        - firstName
+        - lastName
+        - phoneNumber
+        - medicalSummary
+
+    EmergencyPatientResponse:
+      type: object
+      properties:
+        emergencyRecordId:
+          type: string
+          format: uuid
+        temporaryPatientId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - URGENT
+            - REGISTERED
+        createdAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+          example: "Emergency record created. Payment verification bypassed."
+
+    Practice:
+      type: object
+      properties:
+        practiceId:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        license:
+          type: string
+        registrationNumber:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePracticeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        license:
+          type: string
+        registrationNumber:
+          type: string
+      required:
+        - name
+
+    Facility:
+      type: object
+      properties:
+        facilityId:
+          type: string
+          format: uuid
+        practiceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        phoneNumber:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateFacilityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        phoneNumber:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+      required:
+        - name
+        - city
+
+    Service:
+      type: object
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+        facilityId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        specialization:
+          type: string
+        durationMinutes:
+          type: integer
+          default: 15
+        fee:
+          type: number
+          format: decimal
+        autoAssignStaff:
+          type: boolean
+          description: Auto-assign remote-available staff for remote appointments
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateServiceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        specialization:
+          type: string
+        durationMinutes:
+          type: integer
+          default: 15
+        fee:
+          type: number
+          format: decimal
+        autoAssignStaff:
+          type: boolean
+      required:
+        - name
+        - specialization
+        - fee
+
+    ServiceSchedule:
+      type: object
+      properties:
+        scheduleId:
+          type: string
+          format: uuid
+        serviceId:
+          type: string
+          format: uuid
+        dayOfWeek:
+          type: string
+          enum:
+            - MONDAY
+            - TUESDAY
+            - WEDNESDAY
+            - THURSDAY
+            - FRIDAY
+            - SATURDAY
+            - SUNDAY
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        break:
+          type: object
+          properties:
+            startTime:
+              type: string
+              format: time
+            endTime:
+              type: string
+              format: time
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateScheduleRequest:
+      type: object
+      properties:
+        dayOfWeek:
+          type: string
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        break:
+          type: object
+          properties:
+            startTime:
+              type: string
+              format: time
+            endTime:
+              type: string
+              format: time
+      required:
+        - dayOfWeek
+        - startTime
+        - endTime
+
+    StaffMember:
+      type: object
+      properties:
+        staffId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        facilityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Facilities where staff is assigned
+        isRemoteAvailable:
+          type: boolean
+        isOnSiteAvailable:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - PENDING_VERIFICATION
+        createdAt:
+          type: string
+          format: date-time
+
+    InviteStaffRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        facilityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - email
+        - firstName
+        - lastName
+        - facilityIds
+
+    SearchProvidersResponse:
+      type: object
+      properties:
+        totalResults:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              providerId:
+                type: string
+                format: uuid
+              name:
+                type: string
+              specialty:
+                type: string
+              location:
+                type: string
+              rating:
+                type: number
+                format: float
+              reviewCount:
+                type: integer
+              isEmergencyAvailable:
+                type: boolean
+
+    VideoCallResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        roomId:
+          type: string
+        janusGatewayUrl:
+          type: string
+        accessToken:
+          type: string
+        participants:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                format: uuid
+              role:
+                type: string
+              status:
+                type: string
+
+    MedicalRecord:
+      type: object
+      properties:
+        recordId:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        recordType:
+          type: string
+          enum:
+            - HISTORY
+            - PRESCRIPTION
+            - LAB_RESULT
+            - NOTES
+        content:
+          type: string
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        fileUrl:
+          type: string
+          nullable: true
+          description: SeaweedFS URL for encrypted file
+
+    CreateMedicalRecordRequest:
+      type: object
+      properties:
+        patientId:
+          type: string
+          format: uuid
+        recordType:
+          type: string
+        content:
+          type: string
+        appointmentId:
+          type: string
+          format: uuid
+      required:
+        - patientId
+        - recordType
+        - content
+
+    Prescription:
+      type: object
+      properties:
+        prescriptionId:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        doctorId:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        medications:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              dosage:
+                type: string
+              frequency:
+                type: string
+              duration:
+                type: string
+        notes:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+
+    CreatePrescriptionRequest:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        medications:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              dosage:
+                type: string
+              frequency:
+                type: string
+              duration:
+                type: string
+        notes:
+          type: string
+      required:
+        - appointmentId
+        - medications
+
+    LabTest:
+      type: object
+      properties:
+        labTestId:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        doctorId:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        testName:
+          type: string
+        description:
+          type: string
+        orderedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - ORDERED
+            - COMPLETED
+            - RESULTS_UPLOADED
+
+    CreateLabTestRequest:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        testName:
+          type: string
+        description:
+          type: string
+      required:
+        - appointmentId
+        - testName
+
+    LabResult:
+      type: object
+      properties:
+        resultId:
+          type: string
+          format: uuid
+        labTestId:
+          type: string
+          format: uuid
+        fileUrl:
+          type: string
+          description: SeaweedFS encrypted file URL
+        uploadedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - UPLOADED
+            - REVIEWED
+
+    PaymentAccount:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        owner:
+          type: string
+          description: Doctor ID or Institution ID
+        accountHolder:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+        iban:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ConfigurePaymentAccountRequest:
+      type: object
+      properties:
+        accountHolder:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+        iban:
+          type: string
+      required:
+        - accountHolder
+        - bankName
+        - accountNumber
+
+    PaymentReceiptResponse:
+      type: object
+      properties:
+        receiptId:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        fileUrl:
+          type: string
+          description: Encrypted file stored in SeaweedFS
+        paymentMethod:
+          type: string
+        uploadedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - PENDING_VERIFICATION
+            - APPROVED
+            - REJECTED
+
+    PaymentVerificationResponse:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        verifiedBy:
+          type: string
+          format: uuid
+        verificationStatus:
+          type: string
+          enum:
+            - APPROVED
+            - REJECTED
+        verifiedAt:
+          type: string
+          format: date-time
+        appointmentStatus:
+          type: string
+          enum:
+            - CONFIRMED
+            - DISPUTED
+
+    PaymentDispute:
+      type: object
+      properties:
+        disputeId:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        initiatedBy:
+          type: string
+          format: uuid
+        reason:
+          type: string
+        status:
+          type: string
+          enum:
+            - OPEN
+            - ESCALATED_TO_DOCTOR
+            - ESCALATED_TO_OWNER
+            - ESCALATED_TO_ADMIN
+            - RESOLVED
+            - LEGAL
+        currentLevel:
+          type: string
+          enum:
+            - STAFF
+            - DOCTOR
+            - OWNER
+            - ADMIN
+            - LEGAL
+        timeline:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                type: string
+              comment:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    PendingApproval:
+      type: object
+      properties:
+        approvalId:
+          type: string
+          format: uuid
+        applicantId:
+          type: string
+          format: uuid
+        applicationType:
+          type: string
+          enum:
+            - DOCTOR
+            - INSTITUTION
+        applicantName:
+          type: string
+        email:
+          type: string
+          format: email
+        licenseNumber:
+          type: string
+          nullable: true
+        organizationNumber:
+          type: string
+          nullable: true
+        verificationDocuments:
+          type: array
+          items:
+            type: string
+        submittedAt:
+          type: string
+          format: date-time
+
+    ApprovalResponse:
+      type: object
+      properties:
+        approvalId:
+          type: string
+          format: uuid
+        applicantId:
+          type: string
+          format: uuid
+        isApproved:
+          type: boolean
+        reason:
+          type: string
+        processedAt:
+          type: string
+          format: date-time
+        emailSent:
+          type: boolean
+
+    AnalyticsDashboard:
+      type: object
+      properties:
+        role:
+          type: string
+        metrics:
+          type: object
+          additionalProperties: true
+        charts:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChartDataPoint'
+
+    ChartDataPoint:
+      type: object
+      properties:
+        label:
+          type: string
+          description: "X-axis label (e.g., 'Mon', 'Tue')"
+        value:
+          type: number
+          description: "Y-axis value"
+      required:
+        - label
+        - value
+                  
+    AuditLog:
+      type: object
+      properties:
+        logId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum:
+            - READ
+            - WRITE
+            - DELETE
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        ipAddress:
+          type: string
+
+    NotificationPreferences:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        inAppNotifications:
+          type: boolean
+        pushNotifications:
+          type: boolean
+        reminderTimes:
+          type: array
+          items:
+            type: integer
+            description: Minutes before appointment
+          example:
+            - 60
+            - 15
+            - 5
+        appointmentReminders:
+          type: boolean
+        paymentNotifications:
+          type: boolean
+        cancellationNotifications:
+          type: boolean
+
+    UpdateNotificationPreferencesRequest:
+      type: object
+      properties:
+        inAppNotifications:
+          type: boolean
+        pushNotifications:
+          type: boolean
+        reminderTimes:
+          type: array
+          items:
+            type: integer
+        appointmentReminders:
+          type: boolean
+        paymentNotifications:
+          type: boolean
+        cancellationNotifications:
+          type: boolean
+
+    ConsentForm:
+      type: object
+      properties:
+        formId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ConsentSigningResponse:
+      type: object
+      properties:
+        consentId:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        formId:
+          type: string
+          format: uuid
+        signedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - SIGNED
+            - VERIFIED
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: string
+          nullable: true
+
+    AppointmentListResponse:
+      type: object
+      properties:
+        totalResults:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        otp:
+          type: string
+        newPassword:
+          type: string
+          format: password
+      required:
+        - email
+        - otp
+        - newPassword
+
+    RescheduleAppointmentRequest:
+      type: object
+      properties:
+        newSlotId:
+          type: string
+          format: uuid
+      required:
+        - newSlotId
+
+    CancelAppointmentRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+        - reason
+
+    PracticeListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Practice'
+
+    FacilityListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Facility'
+
+    ServiceListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+
+    ScheduleListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceSchedule'
+
+    StaffListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffMember'
+
+    UpdateStaffAvailabilityRequest:
+      type: object
+      properties:
+        isRemoteAvailable:
+          type: boolean
+        isOnSiteAvailable:
+          type: boolean
+      required:
+        - isRemoteAvailable
+        - isOnSiteAvailable
+
+    StartVideoCallRequest:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+      required:
+        - appointmentId
+
+    EndVideoCallRequest:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+      required:
+        - appointmentId
+
+    MedicalRecordListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MedicalRecord'
+
+    UploadLabResultRequest:
+      type: object
+      properties:
+        labTestId:
+          type: string
+          format: uuid
+        file:
+          type: string
+          format: binary
+        appointmentId:
+          type: string
+          format: uuid
+      required:
+        - labTestId
+        - file
+
+    PaymentAccountListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentAccount'
+
+    UploadPaymentReceiptRequest:
+      type: object
+      properties:
+        receipt:
+          type: string
+          format: binary
+        paymentMethod:
+          type: string
+          enum:
+            - JAZZ_CASH
+            - EASY_PAISA
+            - BANK_TRANSFER
+            - OTHER
+      required:
+        - receipt
+        - paymentMethod
+
+    VerifyPaymentRequest:
+      type: object
+      properties:
+        isApproved:
+          type: boolean
+        reason:
+          type: string
+      required:
+        - isApproved
+
+    PaymentDisputeListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentDispute'
+
+    CreatePaymentDisputeRequest:
+      type: object
+      properties:
+        appointmentId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+      required:
+        - appointmentId
+        - reason
+
+    EscalateDisputeRequest:
+      type: object
+      properties:
+        comment:
+          type: string
+      required:
+        - comment
+
+    PendingApprovalListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingApproval'
+
+    ProcessApprovalRequest:
+      type: object
+      properties:
+        isApproved:
+          type: boolean
+        reason:
+          type: string
+      required:
+        - isApproved
+
+    AuditLogListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+
+    ConsentFormListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsentForm'
+
+    SignConsentFormRequest:
+      type: object
+      properties:
+        signatureData:
+          type: string
+          description: Base64-encoded signature (draw-to-sign)
+      required:
+        - signatureData
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized. Invalid or missing JWT token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

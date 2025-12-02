@@ -55,7 +55,7 @@ public class MedicalRecordService {
     }
 
     @PhiAccess(reason = "medical_record_list", entityType = MedicalRecord.class, idParam = "patientId")
-    @org.springframework.cache.annotation.Cacheable(value = "medicalRecords", key = "#patientId")
+    // Cache disabled for MVP - removed @Cacheable to avoid Redis dependency
     public List<MedicalRecordResponse> listForPatient(UUID patientId) {
         enforceViewPermission(patientId);
         return repository.findByPatientIdOrderByCreatedAtDesc(patientId).stream().map(this::toResponse)

@@ -51,8 +51,8 @@ export default function DoctorDashboard() {
         facilitiesApi.listForDoctor(user.id.toString()),
       ]);
 
-      setAppointments(appointmentsData || []);
-      setClinics(clinicsData || []);
+      setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
+      setClinics(Array.isArray(clinicsData) ? clinicsData : []);
     } catch (error: any) {
       toast.error('Failed to load dashboard data');
       console.error('Dashboard load error:', error);
@@ -97,11 +97,18 @@ export default function DoctorDashboard() {
   ];
 
   const todaysAppointments = useMemo(
-    () => appointments.filter((apt) => isToday(new Date(apt.appointmentDateTime))),
+    () =>
+      Array.isArray(appointments)
+        ? appointments.filter((apt) => isToday(new Date(apt.appointmentDateTime)))
+        : [],
     [appointments],
   );
-  const pendingAppointments = appointments.filter((apt) => apt.status === 'PENDING');
-  const activeClinics = clinics.filter((clinic) => clinic.isActive);
+  const pendingAppointments = Array.isArray(appointments)
+    ? appointments.filter((apt) => apt.status === 'PENDING')
+    : [];
+  const activeClinics = Array.isArray(clinics)
+    ? clinics.filter((clinic) => clinic.isActive)
+    : [];
   const todaysVideoConsults = todaysAppointments.filter((apt) => apt.appointmentType === 'ONLINE')
     .length;
 
