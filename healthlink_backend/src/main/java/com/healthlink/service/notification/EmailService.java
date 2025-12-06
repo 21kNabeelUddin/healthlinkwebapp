@@ -227,6 +227,39 @@ public class EmailService {
     }
 
     /**
+     * Send welcome email to emergency patient with password reset instructions
+     */
+    @Async
+    public void sendEmergencyPatientWelcomeEmail(String toEmail, String patientName) {
+        try {
+            Context context = new Context();
+            context.setVariable("patientName", patientName);
+            context.setVariable("loginUrl", "http://localhost:3000/auth/patient/login"); // TODO: Make this configurable
+
+            String htmlContent = templateEngine.process("email/emergency-patient-welcome", context);
+
+            sendHtmlEmail(
+                    toEmail,
+                    "Welcome to HealthLink - Account Created",
+                    htmlContent);
+
+            SafeLogger.get(EmailService.class)
+                .event("email_sent")
+                .with("template", "emergency-patient-welcome")
+                .withMasked("email", toEmail)
+                .log();
+        } catch (Exception e) {
+            SafeLogger.get(EmailService.class)
+                .event("email_send_failed")
+                .with("template", "emergency-patient-welcome")
+                .withMasked("email", toEmail)
+                .with("error", e.getClass().getSimpleName())
+                .log();
+            // Don't throw - email failure shouldn't break patient creation
+        }
+    }
+
+    /**
      * Send payment verification notification to staff
      */
     @Async

@@ -15,6 +15,7 @@ import {
   Video,
   ClipboardList,
   TrendingUp,
+  AlertCircle,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -188,6 +189,12 @@ export default function DoctorDashboard() {
                 </p>
               </div>
               <div className="flex gap-3">
+                <Link href="/doctor/emergency/new">
+                  <Button variant="default" className="bg-red-600 hover:bg-red-700 text-white">
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Emergency Patient
+                  </Button>
+                </Link>
                 <Link href="/doctor/appointments">
                   <Button variant="outline">
                     <Calendar className="w-4 h-4 mr-2" />

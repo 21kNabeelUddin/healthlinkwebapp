@@ -80,7 +80,7 @@ export default function AppointmentsPage() {
           <h1 className="text-4xl font-bold text-gray-800 mb-2">My Appointments</h1>
           <p className="text-gray-600">View and manage your appointments</p>
         </div>
-        <Link href="/patient/appointments/book">
+        <Link href="/patient/doctors">
           <Button>Book New Appointment</Button>
         </Link>
       </div>
@@ -127,7 +127,9 @@ export default function AppointmentsPage() {
                   <div className="space-y-1 text-gray-600">
                     <p>
                       <strong>Date & Time:</strong>{' '}
-                      {format(new Date(appointment.appointmentDateTime), 'MMM dd, yyyy h:mm a')}
+                      {appointment.appointmentDateTime && !isNaN(new Date(appointment.appointmentDateTime).getTime())
+                        ? format(new Date(appointment.appointmentDateTime), 'MMM dd, yyyy h:mm a')
+                        : 'Date not available'}
                     </p>
                     <p><strong>Reason:</strong> {appointment.reason}</p>
                     {appointment.notes && <p><strong>Notes:</strong> {appointment.notes}</p>}

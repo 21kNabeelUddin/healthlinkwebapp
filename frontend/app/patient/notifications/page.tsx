@@ -133,7 +133,7 @@ export default function PatientNotificationsPage() {
             description: `${baseDescription} was ${apt.status.toLowerCase()}. Please reschedule if needed.`,
             timestamp: apt.updatedAt || apt.createdAt,
             variant: 'danger',
-            action: { label: 'Book again', href: '/patient/appointments/book' },
+            action: { label: 'Book again', href: '/patient/doctors' },
           });
           break;
       }

@@ -66,6 +66,9 @@ export interface Doctor extends User {
   specialization: string;
   licenseNumber: string;
   yearsOfExperience: number;
+  averageRating?: number;
+  totalReviews?: number;
+  consultationFee?: number;
 }
 
 // Appointment
@@ -94,6 +97,7 @@ export interface Appointment {
   clinicAddress?: string;
   createdAt: string;
   updatedAt: string;
+  isEmergency?: boolean;
 }
 
 export interface AppointmentRequest {
@@ -103,6 +107,7 @@ export interface AppointmentRequest {
   doctorId: number;
   clinicId?: number;
   appointmentType: AppointmentType;
+  isEmergency?: boolean;
 }
 
 // Medical History
@@ -188,6 +193,37 @@ export interface ZoomMeeting {
   appointmentDateTime: string;
   patientName: string;
   doctorName: string;
+}
+
+// Emergency Patient Types
+export interface CreateEmergencyPatientRequest {
+  patientName: string;
+  phoneNumber?: string;
+}
+
+export interface EmergencyPatientResponse {
+  patientId: string;
+  email: string;
+  patientName: string;
+  phoneNumber?: string;
+}
+
+export interface CreateEmergencyPatientAndAppointmentRequest {
+  patientName: string;
+  phoneNumber?: string;
+  appointmentRequest: {
+    doctorId: string;
+    facilityId: string;
+    serviceOfferingId?: string;
+    appointmentTime: string;
+    reasonForVisit: string;
+    isEmergency: boolean;
+  };
+}
+
+export interface EmergencyPatientAndAppointmentResponse {
+  patient: EmergencyPatientResponse;
+  appointment: Appointment;
 }
 
 // Admin Dashboard

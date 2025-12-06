@@ -1,44 +1,48 @@
-# HealthLink
+# HealthLink+
 
-HealthLink is a comprehensive healthcare platform featuring a Flutter mobile application and a Spring Boot backend. It provides secure telemedicine, appointment scheduling, and health record management with strict PHI protection and RBAC compliance.
+HealthLink+ is a comprehensive healthcare platform web application providing secure telemedicine, appointment scheduling, and health record management with strict PHI protection and RBAC compliance. Built with Next.js frontend and Spring Boot backend.
 
 ## Project Structure
 
-- `healthlink_mobile`: Flutter mobile application (Patient & Doctor portals).
-- `healthlink_backend`: Spring Boot backend services.
-- `healthlink_files`: Documentation and assets.
+- `frontend`: Next.js 14 web application (Patient, Doctor, and Admin portals)
+- `healthlink_backend`: Spring Boot 3 backend services
+- `healthlink_files`: Documentation and assets
 
 ## Prerequisites
 
 - **Java:** JDK 21 LTS
-- **Flutter:** 3.38 (Dart 3.10)
-- **Docker:** Docker Desktop (for local environment)
+- **Node.js:** 18+ and npm/yarn
+- **Docker:** Docker Desktop (for local infrastructure services)
 
 ## Getting Started
 
-### Backend
+### Backend Setup
 
 1. Navigate to `healthlink_backend`:
    ```bash
    cd healthlink_backend
    ```
 
-2. Start infrastructure services (PostgreSQL, Redis, RabbitMQ, MinIO, Elasticsearch, Coturn, etc.):
+2. Configure environment variables:
+   - Copy `.env.example` to `.env` (if available) or create `.env` with required variables
+   - See `SETUP_ENV.md` for detailed configuration
+
+3. Start infrastructure services (PostgreSQL, Redis, RabbitMQ, MinIO, etc.):
    ```bash
    docker-compose up -d
    ```
 
-3. Verify services are healthy:
+4. Verify services are healthy:
    ```bash
    docker ps --filter "name=healthlink" --format "table {{.Names}}\t{{.Status}}"
    ```
 
-4. Run the application:
+5. Run the application:
    ```bash
    ./gradlew bootRun
    ```
 
-5. Access services:
+6. Access backend services:
    - **API:** http://localhost:8080
    - **Swagger UI:** http://localhost:8080/swagger-ui.html
    - **API Docs (JSON):** http://localhost:8080/api-docs
@@ -49,77 +53,102 @@ HealthLink is a comprehensive healthcare platform featuring a Flutter mobile app
    - **Jaeger Tracing:** http://localhost:16686
    - **MailHog:** http://localhost:8025
 
-### Mobile
+### Frontend Setup
 
-1. Navigate to `healthlink_mobile`:
+1. Navigate to `frontend`:
    ```bash
-   cd healthlink_mobile
+   cd frontend
    ```
 
 2. Install dependencies:
    ```bash
-   flutter pub get
+   npm install
    ```
 
-3. Run code generation (if needed):
-   ```bash
-   flutter pub run build_runner build --delete-conflicting-outputs
+3. Create `.env.local` (optional, defaults are set):
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:8080
    ```
 
-4. Run the app (debug mode):
+4. Run the development server:
    ```bash
-   flutter run
+   npm run dev
    ```
 
-5. Run tests:
-   ```bash
-   flutter test
-   flutter analyze
-   ```
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Key Features
 
-- **Telemedicine:** WebRTC-based video consultations with Janus Gateway and Coturn TURN server.
-- **Appointments:** Real-time scheduling and management with conflict detection.
-- **Medical Records:** Secure storage and retrieval of PHI with field-level encryption.
-- **Prescriptions:** Digital prescriptions with drug interaction checks and allergy warnings.
-- **Lab Results:** Structured lab result management with reference ranges and trending.
-- **File Storage:** MinIO-based S3-compatible storage for medical images and documents.
-- **Payments:** Integrated payment gateway (JazzCash) with wallet and transaction history.
-- **Notifications:** Real-time notifications via RabbitMQ and email (MailHog for dev).
+### Patient Portal
+- **Authentication:** Sign up, login, OTP verification, forgot password
+- **Doctor Discovery:** Browse and search doctors by specialization, location, and filters
+- **Appointment Booking:** Book online (Zoom) or on-site appointments with clinic selection
+- **Medical History:** Complete CRUD operations for medical records
+- **Appointment Management:** View, manage, and track appointment status
+- **Notifications:** Real-time appointment updates and reminders
+- **Payments:** View payment history and transaction details
+
+### Doctor Portal
+- **Authentication:** Sign up, login, OTP verification, forgot password
+- **Clinic Management:** Create, update, activate/deactivate multiple clinic locations
+- **Appointment Management:** View appointments grouped by clinic, confirm, reject, or complete
+- **Emergency Patients:** Create patient accounts on-the-spot for walk-in appointments
+- **Prescriptions:** Create and manage digital prescriptions
+- **Analytics:** View appointment statistics and clinic performance
+- **Profile Management:** Update profile, specialization, and consultation fees
+
+### Admin Portal
+- **Dashboard:** System-wide analytics and metrics
+- **User Management:** Approve/reject doctor registrations
+- **PMDC Verification:** Verify doctor PMDC licenses
+- **Clinic Oversight:** Monitor and manage all clinics
+- **Appointment Monitoring:** View all appointments across the platform
+- **Patient Management:** View and manage patient accounts
+
+### Core Platform Features
+- **Telemedicine:** Zoom video call integration for online consultations
+- **Appointments:** Real-time scheduling with conflict detection and availability checks
+- **Medical Records:** Secure storage and retrieval of PHI with field-level encryption
+- **Prescriptions:** Digital prescriptions with structured medication management
+- **File Storage:** MinIO-based S3-compatible storage for medical images and documents
+- **Notifications:** Real-time notifications via RabbitMQ and email
 - **Security:**
-  - **PHI Protection:** AES-256 field-level encryption, audit logging via `SafeLogger`.
-  - **RBAC:** Role-Based Access Control (PATIENT, DOCTOR, STAFF, ORGANIZATION, ADMIN, PLATFORM_OWNER).
-  - **Authentication:** JWT with short-lived access tokens (15m) and rotating refresh tokens.
-  - **Rate Limiting:** Bucket4j + Redis-backed rate limiting per user/endpoint.
-  - **Forced Logout:** Token revocation via `tokensRevokedAt` timestamp.
+  - **PHI Protection:** AES-256 field-level encryption, audit logging via `SafeLogger`
+  - **RBAC:** Role-Based Access Control (PATIENT, DOCTOR, STAFF, ORGANIZATION, ADMIN, PLATFORM_OWNER)
+  - **Authentication:** JWT with 4-hour access tokens and rotating refresh tokens
+  - **Rate Limiting:** Bucket4j + Redis-backed rate limiting per user/endpoint
+  - **Forced Logout:** Token revocation via `tokensRevokedAt` timestamp
 - **Observability:**
-  - **Metrics:** Prometheus + Grafana dashboards.
-  - **Tracing:** OpenTelemetry + Jaeger distributed tracing.
-  - **Logging:** Structured JSON logs with context propagation.
-  - **Error Tracking:** Sentry integration (production).
+  - **Metrics:** Prometheus + Grafana dashboards
+  - **Tracing:** OpenTelemetry + Jaeger distributed tracing
+  - **Logging:** Structured JSON logs with context propagation
+  - **Error Tracking:** Sentry integration (production)
 
 ## Architecture
 
 ### Backend (Spring Boot 3.5.8 + Java 21 LTS)
-- **Hexagonal Architecture:** Domain services, infrastructure adapters, REST controllers.
-- **Database:** PostgreSQL 18.1 with Hibernate DDL auto-update.
-- **Caching:** Redis for rate limiting, session management, and caching.
-- **Messaging:** RabbitMQ for async notifications and event processing.
-- **Storage:** MinIO (S3-compatible) for file uploads.
-- **Search:** Elasticsearch for full-text search (appointments, patients, records).
-- **WebRTC:** Janus Gateway (SFU) + Coturn TURN server for video calls.
+- **Hexagonal Architecture:** Domain services, infrastructure adapters, REST controllers
+- **Database:** PostgreSQL 18.1 with Hibernate DDL auto-update
+- **Caching:** Redis for rate limiting, session management, and caching
+- **Messaging:** RabbitMQ for async notifications and event processing
+- **Storage:** MinIO (S3-compatible) for file uploads
+- **Search:** Database-backed doctor search (Elasticsearch optional)
+- **WebRTC:** Janus Gateway (SFU) + Coturn TURN server for video calls (future)
 
-### Mobile (Flutter 3.38 + Dart 3.10)
-- **Clean Architecture:** Domain, Data, Presentation layers.
-- **State Management:** Bloc/Cubit with Equatable.
-- **Localization:** English + Urdu with RTL support.
-- **Theming:** Design tokens, no hardcoded colors/text.
-- **Progressive PHI Disclosure:** List screens show non-PHI summaries; detail screens require authentication.
+### Frontend (Next.js 14 + TypeScript)
+- **Framework:** Next.js 14 with App Router
+- **Language:** TypeScript for type safety
+- **Styling:** Tailwind CSS with Radix UI components
+- **State Management:** React Context API for authentication
+- **Forms:** React Hook Form for form management and validation
+- **HTTP Client:** Axios for API communication
+- **Notifications:** Sonner (toast notifications)
+- **Icons:** Lucide React
+- **Date Handling:** date-fns for date formatting
 
 ## WebRTC Setup (Coturn TURN Server)
 
-The backend uses **Coturn** as a TURN server for NAT traversal in WebRTC video calls. Configuration is in `docker-compose.yml` and `docker/coturn/turnserver.conf`.
+The backend includes configuration for **Coturn** as a TURN server for NAT traversal in WebRTC video calls. Configuration is in `docker-compose.yml` and `docker/coturn/turnserver.conf`.
 
 ### Configuration
 
@@ -223,6 +252,8 @@ turnutils_uclient -v -u healthlink -w healthlink_turn_secret_2025 coturn
 - `POST /api/v1/auth/login` - Login (returns access + refresh tokens)
 - `POST /api/v1/auth/refresh` - Refresh access token
 - `POST /api/v1/auth/logout` - Logout (revokes tokens)
+- `POST /api/v1/auth/forgot-password` - Initiate password reset
+- `POST /api/v1/auth/reset-password` - Reset password with OTP
 
 **Appointments:**
 - `GET /api/v1/appointments` - List appointments (patient/doctor specific)
@@ -230,6 +261,20 @@ turnutils_uclient -v -u healthlink -w healthlink_turn_secret_2025 coturn
 - `GET /api/v1/appointments/{id}` - Get appointment details
 - `PUT /api/v1/appointments/{id}` - Update appointment
 - `DELETE /api/v1/appointments/{id}` - Cancel appointment
+
+**Doctors:**
+- `GET /api/v1/search/doctors` - Search and list doctors (with filters)
+- `GET /api/v1/facilities/doctor/{doctorId}` - Get doctor's clinics
+
+**Clinics:**
+- `GET /api/v1/facilities` - List clinics
+- `POST /api/v1/facilities` - Create clinic (doctor only)
+- `PUT /api/v1/facilities/{id}` - Update clinic
+- `POST /api/v1/facilities/{id}/activate` - Activate clinic
+
+**Emergency Patients:**
+- `POST /api/v1/doctors/{doctorId}/emergency/patient` - Create emergency patient
+- `POST /api/v1/doctors/{doctorId}/emergency/patient-and-appointment` - Create patient and appointment
 
 **Video Calls:**
 - `POST /api/v1/video-calls/token` - Get WebRTC token (includes ICE servers)
@@ -254,6 +299,59 @@ Authorization: Bearer <access_token>
 - Default: 100 requests/minute per user.
 - Headers: `X-Rate-Limit-Remaining`, `X-Rate-Limit-Retry-After-Seconds`.
 
+## Development
+
+### Backend Development
+
+```bash
+cd healthlink_backend
+./gradlew bootRun
+```
+
+The backend will automatically reload on code changes (if using Spring Boot DevTools).
+
+### Frontend Development
+
+```bash
+cd frontend
+npm run dev
+```
+
+The frontend will hot-reload on code changes.
+
+### Building for Production
+
+**Backend:**
+```bash
+cd healthlink_backend
+./gradlew build
+java -jar build/libs/healthlink-*.jar
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run build
+npm run start
+```
+
+## Environment Variables
+
+### Backend (`.env` in `healthlink_backend/`)
+
+See `healthlink_backend/SETUP_ENV.md` for complete list. Key variables:
+- `DATABASE_URL` - PostgreSQL connection string
+- `SPRING_DATASOURCE_URL` - JDBC URL
+- `SPRING_DATASOURCE_USERNAME` - Database username
+- `SPRING_DATASOURCE_PASSWORD` - Database password
+- `JWT_SECRET` - JWT signing secret (min 32 characters)
+- `PHI_ENCRYPTION_KEY` - Base64-encoded 256-bit key for PHI encryption
+- `MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD` - Email service configuration
+
+### Frontend (`.env.local` in `frontend/`)
+
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:8080`)
+
 ## Documentation
 
 - [Feature Specifications](healthlink_files/feature_specs.md)
@@ -262,6 +360,8 @@ Authorization: Bearer <access_token>
 - [API Integration Guide](API_INTEGRATION_GUIDE.md)
 - [Database Schema](DATABASE_SCHEMA.md)
 - [Release Guide](RELEASE_GUIDE.md)
+- [Recent Changes](RECENT_CHANGES.md)
+- [TODO List](TODO.md)
 
 ## License
 

@@ -15,6 +15,10 @@ import type {
   ClinicRequest,
   ZoomMeeting,
   PatientProfileUpdateRequest,
+  CreateEmergencyPatientRequest,
+  EmergencyPatientResponse,
+  CreateEmergencyPatientAndAppointmentRequest,
+  EmergencyPatientAndAppointmentResponse,
 } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -74,6 +78,79 @@ function unwrapResponse<T = any>(raw: any): T {
     return (raw as any).data ?? raw;
   }
   return raw;
+}
+
+// Helper to transform backend AppointmentResponse to frontend Appointment format
+function transformAppointment(backendAppointment: any): Appointment {
+  if (!backendAppointment) {
+    throw new Error('Invalid appointment data');
+  }
+
+  // Handle date - backend returns startTime as ISO string
+  let appointmentDateTime = '';
+  if (backendAppointment.startTime) {
+    appointmentDateTime = backendAppointment.startTime;
+  } else if (backendAppointment.appointmentTime) {
+    appointmentDateTime = backendAppointment.appointmentTime;
+  } else if (backendAppointment.appointmentDateTime) {
+    appointmentDateTime = backendAppointment.appointmentDateTime;
+  }
+
+  // Validate date is valid before using
+  if (appointmentDateTime) {
+    const date = new Date(appointmentDateTime);
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date in appointment:', appointmentDateTime);
+      appointmentDateTime = new Date().toISOString(); // Fallback to current date
+    }
+  } else {
+    appointmentDateTime = new Date().toISOString(); // Fallback if no date provided
+  }
+
+  // Extract notes and appointment type
+  let notes = backendAppointment.notes || '';
+  let appointmentType: AppointmentType = 'ONSITE';
+  
+  // Extract appointment type from notes if stored there (format: "APPT_TYPE:ONLINE|actual notes")
+  if (notes.startsWith('APPT_TYPE:')) {
+    const parts = notes.split('|');
+    const typePart = parts[0].replace('APPT_TYPE:', '');
+    appointmentType = (typePart === 'ONLINE' ? 'ONLINE' : 'ONSITE') as AppointmentType;
+    notes = parts.length > 1 ? parts.slice(1).join('|') : ''; // Rest of notes after type
+  } else if (backendAppointment.type) {
+    appointmentType = (backendAppointment.type === 'ONLINE' ? 'ONLINE' : 'ONSITE') as AppointmentType;
+  } else if (backendAppointment.appointmentType) {
+    appointmentType = (backendAppointment.appointmentType === 'ONLINE' ? 'ONLINE' : 'ONSITE') as AppointmentType;
+  } else if (!backendAppointment.facilityId) {
+    // If no facility, assume online
+    appointmentType = 'ONLINE';
+  }
+
+  return {
+    id: backendAppointment.id?.toString() || String(backendAppointment.id) || '',
+    appointmentDateTime: appointmentDateTime,
+    reason: backendAppointment.notes || backendAppointment.reasonForVisit || backendAppointment.reason || '',
+    notes: notes, // Clean notes without the type prefix
+    status: (backendAppointment.status || 'PENDING') as AppointmentStatus,
+    appointmentType: appointmentType,
+    zoomMeetingId: backendAppointment.zoomMeetingId,
+    zoomMeetingUrl: backendAppointment.zoomMeetingUrl,
+    zoomMeetingPassword: backendAppointment.zoomMeetingPassword,
+    zoomJoinUrl: backendAppointment.zoomJoinUrl,
+    patientId: backendAppointment.patientId ? (typeof backendAppointment.patientId === 'string' ? parseInt(backendAppointment.patientId) : backendAppointment.patientId) : 0,
+    patientName: backendAppointment.patientName || '',
+    patientEmail: backendAppointment.patientEmail,
+    doctorId: backendAppointment.doctorId ? (typeof backendAppointment.doctorId === 'string' ? parseInt(backendAppointment.doctorId) : backendAppointment.doctorId) : 0,
+    doctorName: backendAppointment.doctorName || '',
+    doctorSpecialization: backendAppointment.doctorSpecialization,
+    // Keep facilityId as string (UUID) - don't convert to number
+    clinicId: backendAppointment.facilityId ? String(backendAppointment.facilityId) : undefined,
+    clinicName: backendAppointment.clinicName || backendAppointment.facilityName,
+    clinicAddress: backendAppointment.clinicAddress || backendAppointment.facilityAddress,
+    createdAt: backendAppointment.createdAt || new Date().toISOString(),
+    updatedAt: backendAppointment.updatedAt || new Date().toISOString(),
+    isEmergency: backendAppointment.isEmergency || false,
+  };
 }
 
 // Response interceptor for token refresh and attaching user-friendly messages
@@ -328,19 +405,22 @@ export const appointmentsApi = {
   list: async (status?: string) => {
     const params = status ? { status } : {};
     const response = await api.get('/api/v1/appointments', { params });
-    const data = unwrapResponse<Appointment[]>(response.data);
-    // Ensure we always return an array
-    return Array.isArray(data) ? data : [];
+    const data = unwrapResponse<any[]>(response.data);
+    // Ensure we always return an array and transform each appointment
+    if (!Array.isArray(data)) return [];
+    return data.map(transformAppointment);
   },
 
   getById: async (id: string) => {
     const response = await api.get(`/api/v1/appointments/${id}`);
-    return unwrapResponse<Appointment>(response.data);
+    const data = unwrapResponse<any>(response.data);
+    return transformAppointment(data);
   },
 
   create: async (data: any) => {
     const response = await api.post('/api/v1/appointments', data);
-    return unwrapResponse<Appointment>(response.data);
+    const result = unwrapResponse<any>(response.data);
+    return transformAppointment(result);
   },
 
   reschedule: async (appointmentId: string, newStartTime: string) => {
@@ -348,13 +428,15 @@ export const appointmentsApi = {
       appointmentId,
       newStartTime,
     });
-    return unwrapResponse<Appointment>(response.data);
+    const result = unwrapResponse<any>(response.data);
+    return transformAppointment(result);
   },
 
   cancel: async (id: string, reason?: string) => {
     const params = reason ? { reason } : {};
     const response = await api.post(`/api/v1/appointments/${id}/cancel`, null, { params });
-    return unwrapResponse<Appointment>(response.data);
+    const result = unwrapResponse<any>(response.data);
+    return transformAppointment(result);
   },
 
   checkIn: async (id: string, isPatient: boolean = true) => {
@@ -362,12 +444,14 @@ export const appointmentsApi = {
       ? `/api/v1/appointments/${id}/patient-check-in`
       : `/api/v1/appointments/${id}/staff-check-in`;
     const response = await api.post(endpoint);
-    return unwrapResponse<Appointment>(response.data);
+    const result = unwrapResponse<any>(response.data);
+    return transformAppointment(result);
   },
 
   complete: async (id: string) => {
     const response = await api.patch(`/api/v1/appointments/${id}/complete`);
-    return unwrapResponse<Appointment>(response.data);
+    const result = unwrapResponse<any>(response.data);
+    return transformAppointment(result);
   },
 };
 
@@ -675,6 +759,23 @@ export const doctorApi = {
 
   getZoomMeeting: async (appointmentId: string): Promise<ZoomMeeting> => {
     return videoCallsApi.getSession(appointmentId);
+  },
+
+  // Emergency Patient Management
+  createEmergencyPatient: async (
+    doctorId: string,
+    data: CreateEmergencyPatientRequest,
+  ): Promise<EmergencyPatientResponse> => {
+    const response = await api.post(`/api/v1/doctors/${doctorId}/emergency/patient`, data);
+    return response.data;
+  },
+
+  createEmergencyPatientAndAppointment: async (
+    doctorId: string,
+    data: CreateEmergencyPatientAndAppointmentRequest,
+  ): Promise<EmergencyPatientAndAppointmentResponse> => {
+    const response = await api.post(`/api/v1/doctors/${doctorId}/emergency/patient-and-appointment`, data);
+    return response.data;
   },
 };
 

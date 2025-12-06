@@ -504,7 +504,7 @@ public class AuthenticationService {
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
-                .expiresIn(900000L)
+                .expiresIn(14400000L) // 4 hours
                 .user(mapToUserInfo(user))
                 .build();
     }

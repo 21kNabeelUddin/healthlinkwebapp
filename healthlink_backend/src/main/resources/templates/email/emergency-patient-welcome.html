@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to HealthLink - Account Created</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        line-height: 1.6;
+        color: #333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 40px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .logo {
+        color: #2563eb;
+        font-size: 28px;
+        font-weight: bold;
+      }
+      .button {
+        display: inline-block;
+        background: #2563eb;
+        color: #ffffff;
+        padding: 14px 28px;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+        margin: 20px 0;
+      }
+      .button:hover {
+        background: #1d4ed8;
+      }
+      .info-box {
+        background: #f3f4f6;
+        border-left: 4px solid #2563eb;
+        padding: 16px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e7eb;
+        color: #6b7280;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="logo">HealthLink</div>
+      </div>
+
+      <h1>Welcome to HealthLink, <span th:text="${patientName}">Patient</span>!</h1>
+
+      <p>Your account has been created successfully. To access your account and view your medical information, you'll need to set up a password.</p>
+
+      <div class="info-box">
+        <strong>Next Steps:</strong>
+        <ol style="margin: 10px 0; padding-left: 20px;">
+          <li>Go to the login page</li>
+          <li>Click on "Forgot Password"</li>
+          <li>Enter your email address</li>
+          <li>Follow the instructions to reset your password</li>
+        </ol>
+      </div>
+
+      <div style="text-align: center;">
+        <a th:href="${loginUrl}" class="button">Go to Login Page</a>
+      </div>
+
+      <p style="margin-top: 30px;">
+        If you have any questions or need assistance, please don't hesitate to contact our support team.
+      </p>
+
+      <div class="footer">
+        <p>This is an automated message from HealthLink Platform.</p>
+        <p>Please do not reply to this email.</p>
+      </div>
+    </div>
+  </body>
+</html>
+

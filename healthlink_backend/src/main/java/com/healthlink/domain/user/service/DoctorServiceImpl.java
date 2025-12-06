@@ -15,6 +15,7 @@ import com.healthlink.domain.user.enums.ApprovalStatus;
 import com.healthlink.domain.user.enums.UserRole;
 import com.healthlink.domain.user.repository.DoctorRepository;
 import com.healthlink.domain.user.repository.UserRepository;
+import com.healthlink.service.notification.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -35,9 +36,9 @@ public class DoctorServiceImpl implements DoctorService {
         private final UserRepository userRepository;
         private final PasswordEncoder passwordEncoder;
         private final AppointmentService appointmentService;
+        private final EmailService emailService;
         
         private static final SecureRandom RANDOM = new SecureRandom();
-        private static final String EMERGENCY_EMAIL_DOMAIN = "@emergency.healthlink.local";
 
         @Override
         public DoctorDashboardDTO getDashboard(UUID doctorId) {
@@ -75,23 +76,29 @@ public class DoctorServiceImpl implements DoctorService {
         @Transactional
         public EmergencyPatientResponse createEmergencyPatient(UUID doctorId, CreateEmergencyPatientRequest request) {
                 // Verify doctor exists
-                Doctor doctor = doctorRepository.findById(doctorId)
+                doctorRepository.findById(doctorId)
                                 .orElseThrow(() -> new RuntimeException("Doctor not found"));
                 
-                // Generate unique email
-                String email = generateUniqueEmail();
+                // Use patient's real email from request
+                String email = request.getEmail().trim().toLowerCase();
                 
-                // Generate temporary password
+                // Check if email already exists
+                if (userRepository.existsByEmail(email)) {
+                        throw new RuntimeException("An account with this email already exists");
+                }
+                
+                // Generate temporary password (not returned to frontend, patient will reset it)
                 String temporaryPassword = generateTemporaryPassword();
+                
+                // Set patient name - split if possible, otherwise use full name
+                String patientName = request.getPatientName().trim();
+                String[] nameParts = patientName.split("\\s+", 2);
                 
                 // Create patient
                 Patient patient = new Patient();
                 patient.setEmail(email);
                 patient.setPasswordHash(passwordEncoder.encode(temporaryPassword));
                 
-                // Set patient name - split if possible, otherwise use full name
-                String patientName = request.getPatientName().trim();
-                String[] nameParts = patientName.split("\\s+", 2);
                 if (nameParts.length >= 2) {
                         patient.setFirstName(nameParts[0]);
                         patient.setLastName(nameParts[1]);
@@ -109,10 +116,12 @@ public class DoctorServiceImpl implements DoctorService {
                 
                 Patient savedPatient = userRepository.save(patient);
                 
+                // Send welcome email with password reset instructions
+                emailService.sendEmergencyPatientWelcomeEmail(email, patientName);
+                
                 return EmergencyPatientResponse.builder()
                                 .patientId(savedPatient.getId())
                                 .email(email)
-                                .temporaryPassword(temporaryPassword)
                                 .patientName(patientName)
                                 .phoneNumber(request.getPhoneNumber())
                                 .build();
@@ -125,6 +134,7 @@ public class DoctorServiceImpl implements DoctorService {
                 // Create emergency patient first
                 CreateEmergencyPatientRequest patientRequest = new CreateEmergencyPatientRequest();
                 patientRequest.setPatientName(request.getPatientName());
+                patientRequest.setEmail(request.getEmail()); // Pass email from request
                 patientRequest.setPhoneNumber(request.getPhoneNumber());
                 
                 EmergencyPatientResponse patientResponse = createEmergencyPatient(doctorId, patientRequest);
@@ -132,7 +142,7 @@ public class DoctorServiceImpl implements DoctorService {
                 // Mark appointment as emergency
                 request.getAppointmentRequest().setIsEmergency(true);
                 
-                // Create appointment using the generated email
+                // Create appointment using the patient's email
                 var appointmentResponse = appointmentService.createAppointment(
                                 request.getAppointmentRequest(), 
                                 patientResponse.getEmail());
@@ -141,20 +151,6 @@ public class DoctorServiceImpl implements DoctorService {
                                 .patient(patientResponse)
                                 .appointment(appointmentResponse)
                                 .build();
-        }
-        
-        private String generateUniqueEmail() {
-                String email;
-                int attempts = 0;
-                do {
-                        String uuid = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-                        email = "emergency-" + uuid + EMERGENCY_EMAIL_DOMAIN;
-                        attempts++;
-                        if (attempts > 10) {
-                                throw new RuntimeException("Failed to generate unique email after multiple attempts");
-                        }
-                } while (userRepository.existsByEmail(email));
-                return email;
         }
         
         private String generateTemporaryPassword() {

@@ -173,7 +173,7 @@ healthlink:
   # JWT Configuration
   jwt:
     secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-use-strong-random-key}
-    access-token-expiration: 900000 # 15 minutes
+    access-token-expiration: 14400000 # 4 hours (changed from 15 minutes)
     refresh-token-expiration: 604800000 # 7 days
 
   # OTP Configuration

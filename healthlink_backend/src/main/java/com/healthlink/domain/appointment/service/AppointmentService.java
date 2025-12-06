@@ -99,6 +99,12 @@ public class AppointmentService {
         appointment.setStatus(AppointmentStatus.PENDING_PAYMENT);
         appointment.setReasonForVisit(request.getReasonForVisit());
         appointment.setIsEmergency(isEmergency);
+        
+        // Store appointment type in notes field temporarily (format: "APPT_TYPE:ONLINE" or "APPT_TYPE:ONSITE")
+        // This allows us to retrieve it later without a database migration
+        String appointmentType = request.getType() != null ? request.getType() : "ONSITE";
+        String existingNotes = request.getNotes() != null ? request.getNotes() : "";
+        appointment.setNotes("APPT_TYPE:" + appointmentType + (existingNotes.isEmpty() ? "" : "|" + existingNotes));
 
         if (requiresStaffAssignment(facility, serviceOffering)) {
             var staff = staffAssignmentService.assignStaff(facility.getId(), startTime, endTime);
@@ -308,6 +314,16 @@ public class AppointmentService {
                     .getStatus() == com.healthlink.domain.appointment.entity.PaymentStatus.CAPTURED;
         }
 
+        // Extract appointment type from notes field (format: "APPT_TYPE:ONLINE" or "APPT_TYPE:ONSITE")
+        String appointmentType = "ONSITE"; // Default
+        if (appointment.getNotes() != null && appointment.getNotes().startsWith("APPT_TYPE:")) {
+            String typePart = appointment.getNotes().split("\\|")[0];
+            appointmentType = typePart.replace("APPT_TYPE:", "");
+        } else if (appointment.getFacility() == null) {
+            // If no facility, it's likely an online appointment
+            appointmentType = "ONLINE";
+        }
+        
         return AppointmentResponse.builder()
                 .id(appointment.getId())
                 .patientId(appointment.getPatient().getId().toString())
@@ -321,6 +337,7 @@ public class AppointmentService {
                 .startTime(appointment.getAppointmentTime())
                 .endTime(appointment.getEndTime())
                 .status(appointment.getStatus().name())
+                .type(appointmentType)
                 .notes(appointment.getReasonForVisit())
                 .patientCheckInTime(appointment.getPatientCheckInTime())
                 .staffCheckInTime(appointment.getStaffCheckInTime())

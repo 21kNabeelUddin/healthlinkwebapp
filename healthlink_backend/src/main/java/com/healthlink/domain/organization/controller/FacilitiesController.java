@@ -50,12 +50,19 @@ public class FacilitiesController {
     }
 
     @GetMapping("/doctor/{doctorId}")
-    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','ADMIN')")
     public List<FacilityResponse> listDoctor(@PathVariable UUID doctorId, Authentication auth) {
-        if (auth.getPrincipal() instanceof CustomUserDetails cud && cud.getId().equals(doctorId)) {
-            return facilityService.listForDoctor(doctorId);
-        } else if (auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
-            return facilityService.listForDoctor(doctorId);
+        // Allow patients to view clinics for any doctor (for booking purposes)
+        // Doctors can only view their own clinics, admins can view any
+        if (auth.getPrincipal() instanceof CustomUserDetails cud) {
+            boolean isPatient = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_PATIENT"));
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            boolean isOwnDoctor = cud.getId().equals(doctorId) && 
+                                  auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DOCTOR"));
+            
+            if (isPatient || isAdmin || isOwnDoctor) {
+                return facilityService.listForDoctor(doctorId);
+            }
         }
         throw new RuntimeException("Unauthorized");
     }

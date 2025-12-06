@@ -126,7 +126,7 @@ export default function PatientDashboard() {
                 <p className="text-slate-600">Here's your health overview for today</p>
               </div>
               <div className="flex gap-3">
-                <Link href="/patient/appointments/book">
+                <Link href="/patient/doctors">
                   <Button className="bg-gradient-to-r from-teal-500 to-violet-600 hover:from-teal-600 hover:to-violet-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Book Appointment
@@ -277,7 +277,7 @@ export default function PatientDashboard() {
                   <h3 className="text-lg mb-4">Quick Actions</h3>
 
                   <div className="space-y-3">
-                    <Link href="/patient/appointments/book">
+                    <Link href="/patient/doctors">
                       <button className="w-full bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-lg p-3 text-left transition flex items-center gap-3">
                         <Plus className="w-5 h-5" />
                         <span className="text-sm">Book New Appointment</span>

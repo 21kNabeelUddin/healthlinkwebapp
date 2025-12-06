@@ -22,4 +22,8 @@ public class CreateAppointmentRequest {
     private String reasonForVisit;
     
     private Boolean isEmergency = false;
+    
+    private String type; // "ONLINE" or "ONSITE"
+    
+    private String notes; // Additional notes
 }

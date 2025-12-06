@@ -10,7 +10,6 @@ import java.util.UUID;
 public class EmergencyPatientResponse {
     private UUID patientId;
     private String email;
-    private String temporaryPassword;
     private String patientName;
     private String phoneNumber;
 }
