@@ -10,7 +10,9 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 import { format } from 'date-fns';
+
 import { ActiveAppointmentPrescriptionMonitor } from '@/components/prescription/ActiveAppointmentPrescriptionMonitor';
+
 
 export default function AppointmentsPage() {
   const { user } = useAuth();
@@ -76,6 +78,7 @@ export default function AppointmentsPage() {
 
   return (
     <DashboardLayout requiredUserType="PATIENT">
+
       {/* Monitor active appointments for prescriptions */}
       <ActiveAppointmentPrescriptionMonitor 
         appointments={appointments} 
@@ -83,6 +86,7 @@ export default function AppointmentsPage() {
         redirectDelay={5000}
       />
       
+
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold text-gray-800 mb-2">My Appointments</h1>
@@ -184,11 +188,14 @@ export default function AppointmentsPage() {
                       <Button className="w-full">Join Zoom</Button>
                     </a>
                   )}
+
                   {appointment.status === 'CONFIRMED' && (
                     <Link href={`/patient/prescriptions?appointmentId=${appointment.id}`}>
                       <Button variant="outline" className="w-full">View Prescription</Button>
                     </Link>
                   )}
+
+
                 </div>
               </div>
             </Card>
@@ -198,4 +205,3 @@ export default function AppointmentsPage() {
     </DashboardLayout>
   );
 }
-

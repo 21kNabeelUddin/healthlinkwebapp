@@ -95,4 +95,5 @@ public class Appointment extends BaseEntity {
 
     @Column(name = "zoom_start_url", length = 500)
     private String zoomStartUrl;
+
 }

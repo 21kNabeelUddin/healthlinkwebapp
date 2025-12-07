@@ -40,7 +40,9 @@ class AppointmentSchedulingTest {
     @Mock private FacilityRepository facilityRepository;
     @Mock private ServiceOfferingRepository serviceOfferingRepository;
     @Mock private StaffAssignmentService staffAssignmentService;
+
     @Mock private ZoomApiService zoomApiService;
+
 
     private AppointmentService service;
 

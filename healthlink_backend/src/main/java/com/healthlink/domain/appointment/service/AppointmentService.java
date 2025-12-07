@@ -14,9 +14,11 @@ import com.healthlink.domain.user.entity.Patient;
 import com.healthlink.domain.user.entity.Staff;
 import com.healthlink.domain.user.repository.DoctorRepository;
 import com.healthlink.domain.user.repository.UserRepository;
+
 import com.healthlink.infrastructure.zoom.ZoomApiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import com.healthlink.domain.webhook.EventType;
 import com.healthlink.domain.webhook.WebhookPublisherService;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional
 @Slf4j
+
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
@@ -38,7 +41,9 @@ public class AppointmentService {
     private final ServiceOfferingRepository serviceOfferingRepository;
     private final StaffAssignmentService staffAssignmentService;
     private final WebhookPublisherService webhookPublisherService;
+
     private final ZoomApiService zoomApiService;
+
 
     public AppointmentResponse createAppointment(CreateAppointmentRequest request, String patientEmail) {
         Patient patient = (Patient) userRepository.findByEmail(patientEmail)
@@ -121,6 +126,7 @@ public class AppointmentService {
         if ("ONLINE".equalsIgnoreCase(appointmentType)) {
             createZoomMeeting(savedAppointment, doctor, patient, startTime, duration);
         }
+
 
         // Emit webhook event for downstream integrations (CRM / analytics)
         webhookPublisherService.publish(EventType.APPOINTMENT_CREATED, savedAppointment.getId().toString());
@@ -314,6 +320,7 @@ public class AppointmentService {
         return facility != null && Boolean.TRUE.equals(facility.getRequiresStaffAssignment());
     }
 
+
     /**
      * Create Zoom meeting for online appointments
      */
@@ -391,11 +398,13 @@ public class AppointmentService {
                 .fee(fee)
                 .isPaid(isPaid)
                 .isEmergency(appointment.getIsEmergency() != null ? appointment.getIsEmergency() : false)
+
                 .zoomMeetingId(appointment.getZoomMeetingId())
                 .zoomMeetingUrl(appointment.getZoomMeetingUrl())
                 .zoomMeetingPassword(appointment.getZoomMeetingPassword())
                 .zoomJoinUrl(appointment.getZoomJoinUrl())
                 .zoomStartUrl(appointment.getZoomStartUrl())
+
                 .build();
     }
 }
