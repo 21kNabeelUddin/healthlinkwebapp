@@ -405,6 +405,15 @@ public class AppointmentService {
                 .zoomJoinUrl(appointment.getZoomJoinUrl())
                 .zoomStartUrl(appointment.getZoomStartUrl())
 
+                // Enriched data for frontend display
+                .patientName(appointment.getPatient().getFullName())
+                .patientEmail(appointment.getPatient().getEmail())
+                .doctorName(appointment.getDoctor().getFullName())
+                .doctorSpecialization(appointment.getDoctor().getSpecialization())
+                .clinicName(appointment.getFacility() != null ? appointment.getFacility().getName() : null)
+                .clinicAddress(appointment.getFacility() != null ? 
+                    (appointment.getFacility().getAddress() + ", " + appointment.getFacility().getCity()) : null)
+
                 .build();
     }
 }

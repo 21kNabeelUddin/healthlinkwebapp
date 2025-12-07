@@ -73,6 +73,7 @@ public class FacilityService {
                 .id(f.getId())
                 .name(f.getName())
                 .address(f.getAddress())
+                .town(f.getTown())
                 .city(f.getCity())
                 .state(f.getState())
                 .zipCode(f.getZipCode())
@@ -87,12 +88,14 @@ public class FacilityService {
                 .active(f.isActive())
                 .organizationId(f.getOrganization() != null ? f.getOrganization().getId() : null)
                 .doctorOwnerId(f.getDoctorOwner() != null ? f.getDoctorOwner().getId() : null)
+                .servicesOffered(f.getServicesOffered())
                 .build();
     }
 
     private void mapRequestToEntity(FacilityRequest request, Facility facility) {
         facility.setName(request.getName());
         facility.setAddress(request.getAddress());
+        facility.setTown(request.getTown());
         facility.setCity(request.getCity());
         facility.setState(request.getState());
         facility.setZipCode(request.getZipCode());
@@ -104,5 +107,6 @@ public class FacilityService {
         facility.setLatitude(request.getLatitude());
         facility.setLongitude(request.getLongitude());
         facility.setConsultationFee(request.getConsultationFee());
+        facility.setServicesOffered(request.getServicesOffered());
     }
 }

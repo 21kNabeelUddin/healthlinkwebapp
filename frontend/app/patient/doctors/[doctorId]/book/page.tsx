@@ -110,6 +110,7 @@ export default function BookAppointmentPage() {
   const loadClinics = async () => {
     try {
       const data = await facilitiesApi.listForDoctor(doctorId);
+      // Filter only active clinics
       const activeClinics = data.filter((c) => c.active);
       setClinics(activeClinics || []);
       
@@ -126,6 +127,23 @@ export default function BookAppointmentPage() {
       setClinics([]);
     }
   };
+
+  // Filter clinics based on services offered and appointment type
+  const getAvailableClinics = () => {
+    if (!appointmentType) return clinics;
+    
+    return clinics.filter((clinic) => {
+      if (!clinic.servicesOffered) {
+        // If servicesOffered is not set, assume it offers both (backward compatibility)
+        return true;
+      }
+      
+      const services = clinic.servicesOffered.split(',').map(s => s.trim().toUpperCase());
+      return services.includes(appointmentType);
+    });
+  };
+
+  const availableClinics = getAvailableClinics();
 
   useEffect(() => {
     if (selectedClinicId && clinics.length > 0) {
@@ -164,13 +182,19 @@ export default function BookAppointmentPage() {
       // Convert clinic ID to string (backend expects UUID string format)
       facilityId = String(selectedClinicObj.id);
     } else {
-      // For online appointments, use the first available clinic
+      // For online appointments, use the first available clinic that offers online service
       // (Backend requires facilityId even for online appointments)
-      if (clinics.length === 0) {
-        toast.error('This doctor has no clinics available. Please contact the doctor directly.');
+      const onlineClinics = availableClinics.filter((c) => {
+        if (!c.servicesOffered) return true; // Backward compatibility
+        const services = c.servicesOffered.split(',').map(s => s.trim().toUpperCase());
+        return services.includes('ONLINE');
+      });
+      
+      if (onlineClinics.length === 0) {
+        toast.error('This doctor has no clinics available for online consultations. Please contact the doctor directly.');
         return;
       }
-      facilityId = String(clinics[0].id);
+      facilityId = String(onlineClinics[0].id);
     }
 
     // Final validation that facilityId is valid
@@ -439,10 +463,12 @@ export default function BookAppointmentPage() {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Select Clinic *
                   </label>
-                  {clinics.length === 0 ? (
+                  {availableClinics.length === 0 ? (
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
-                        This doctor has no active clinics. Please select "Online Consultation" or contact the doctor directly.
+                        {clinics.length === 0
+                          ? 'This doctor has no active clinics. Please select "Online Consultation" or contact the doctor directly.'
+                          : 'No clinics available for on-site visits. Please select "Online Consultation" or contact the doctor directly.'}
                       </p>
                     </div>
                   ) : (
@@ -461,13 +487,13 @@ export default function BookAppointmentPage() {
                         onChange={(e) => {
                           const clinicIdValue = e.target.value;
                           setValue('clinicId', clinicIdValue, { shouldValidate: true });
-                          const clinic = clinics.find((c) => c.id.toString() === clinicIdValue);
+                          const clinic = availableClinics.find((c) => c.id.toString() === clinicIdValue);
                           setSelectedClinic(clinic || null);
                         }}
                         className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       >
                         <option value="">Select a clinic</option>
-                        {clinics.map((clinic) => (
+                        {availableClinics.map((clinic) => (
                           <option key={clinic.id} value={String(clinic.id)}>
                             {clinic.name} - {clinic.address}, {clinic.city}
                             {clinic.consultationFee && ` (PKR ${clinic.consultationFee.toLocaleString()})`}

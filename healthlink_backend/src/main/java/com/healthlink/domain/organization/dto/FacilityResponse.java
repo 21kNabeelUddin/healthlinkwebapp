@@ -12,6 +12,7 @@ public class FacilityResponse {
     private UUID id;
     private String name;
     private String address;
+    private String town;
     private String city;
     private String state;
     private String zipCode;
@@ -26,4 +27,5 @@ public class FacilityResponse {
     private boolean active;
     private UUID organizationId;
     private UUID doctorOwnerId;
+    private String servicesOffered; // e.g., "ONLINE,ONSITE" or "ONSITE"
 }

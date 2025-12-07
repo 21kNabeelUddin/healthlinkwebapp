@@ -83,68 +83,72 @@ export default function DoctorAppointmentsPage() {
       });
     });
 
-    // Add "Online/No Clinic" category for online appointments or appointments without clinic
-    clinicMap.set('online', {
-      id: 0,
-      name: 'Online Consultations',
-      address: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      phoneNumber: '',
-      email: '',
-      description: '',
-      openingTime: '',
-      closingTime: '',
-      active: true,
-      doctorId: user?.id || 0,
-      doctorName: '',
-      createdAt: '',
-      updatedAt: '',
-      appointments: [],
-    } as ClinicWithAppointments);
-
-    // Group appointments by clinic first, then show both ONLINE and ONSITE under each clinic
+    // Group appointments by clinic - both ONLINE and ONSITE appointments go under their clinic
     appointments.forEach((appointment) => {
-      // If appointment has a clinicId, add it to that clinic (regardless of ONLINE/ONSITE)
+      // If appointment has a clinicId, add it to that clinic (regardless of ONLINE/ONSITE type)
       if (appointment.clinicId) {
-        // Convert both to strings for consistent comparison (handles UUID strings and numeric IDs)
         const appointmentClinicId = String(appointment.clinicId);
         const clinic = clinicMap.get(appointmentClinicId);
         
         if (clinic) {
           clinic.appointments.push(appointment);
         } else {
-          // Clinic not found in our list, add to online as fallback
-          const onlineClinic = clinicMap.get('online');
-          if (onlineClinic) {
-            onlineClinic.appointments.push(appointment);
-          }
+          // Clinic not found in our list - create a temporary entry for it
+          clinicMap.set(appointmentClinicId, {
+            id: appointment.clinicId,
+            name: appointment.clinicName || 'Unknown Clinic',
+            address: appointment.clinicAddress || '',
+            city: '',
+            state: '',
+            zipCode: '',
+            phoneNumber: '',
+            email: '',
+            description: '',
+            openingTime: '',
+            closingTime: '',
+            active: true,
+            doctorId: user?.id || 0,
+            doctorName: '',
+            createdAt: '',
+            updatedAt: '',
+            appointments: [appointment],
+          } as ClinicWithAppointments);
         }
       } else {
-        // No clinic ID - these are truly online-only appointments without a clinic
-        // Add to "Online Consultations" section
-        const onlineClinic = clinicMap.get('online');
-        if (onlineClinic) {
-          onlineClinic.appointments.push(appointment);
+        // No clinic ID - create an "Unassigned" section for these
+        if (!clinicMap.has('unassigned')) {
+          clinicMap.set('unassigned', {
+            id: 'unassigned' as any,
+            name: 'Unassigned Appointments',
+            address: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            phoneNumber: '',
+            email: '',
+            description: '',
+            openingTime: '',
+            closingTime: '',
+            active: true,
+            doctorId: user?.id || 0,
+            doctorName: '',
+            createdAt: '',
+            updatedAt: '',
+            appointments: [],
+          } as ClinicWithAppointments);
         }
+        clinicMap.get('unassigned')!.appointments.push(appointment);
       }
     });
 
     // Filter by selected clinic
     let result = Array.from(clinicMap.values());
     if (selectedClinicFilter !== 'all') {
-      if (selectedClinicFilter === 'online') {
-        result = result.filter((c) => c.id === 0);
-      } else {
-        result = result.filter((c) => String(c.id) === selectedClinicFilter);
-      }
+      result = result.filter((c) => String(c.id) === selectedClinicFilter);
     }
 
-    // Only show clinics with appointments or all clinics if filter is set
-    if (selectedClinicFilter === 'all') {
-      result = result.filter((c) => c.appointments.length > 0 || clinics.some((cl) => String(cl.id) === String(c.id)));
-    }
+    // Only show clinics with appointments
+    result = result.filter((c) => c.appointments.length > 0);
 
     return result.sort((a, b) => {
       // Sort by appointment count (descending)
@@ -261,10 +265,9 @@ export default function DoctorAppointmentsPage() {
                 onChange={(e) => setSelectedClinicFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               >
-                <option value="all">All Clinics ({totalAppointments})</option>
-                <option value="online">Online Consultations</option>
+                <option value="all">All Clinics ({clinics.length})</option>
                 {clinics.map((clinic) => {
-                  const count = appointments.filter((apt) => apt.clinicId === clinic.id).length;
+                  const count = appointments.filter((apt) => String(apt.clinicId) === String(clinic.id)).length;
                   return (
                     <option key={clinic.id} value={clinic.id.toString()}>
                       {clinic.name} ({count})
@@ -297,11 +300,7 @@ export default function DoctorAppointmentsPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-violet-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                          {clinic.id === 0 ? (
-                            <Video className="w-6 h-6 text-white" />
-                          ) : (
-                            <Building2 className="w-6 h-6 text-white" />
-                          )}
+                          <Building2 className="w-6 h-6 text-white" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
@@ -310,16 +309,18 @@ export default function DoctorAppointmentsPage() {
                               {clinic.appointments.length} appointment{clinic.appointments.length !== 1 ? 's' : ''}
                             </Badge>
                           </div>
-                          {clinic.id !== 0 && (
+                          {clinic.address && (
                             <div className="space-y-1 text-sm text-slate-600">
                               <div className="flex items-center gap-2">
                                 <MapPin className="w-4 h-4 text-red-500" />
-                                <span>{clinic.address}, {clinic.city}</span>
+                                <span>{clinic.address}{clinic.city ? `, ${clinic.city}` : ''}</span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-slate-500" />
-                                <span>Opens {clinic.openingTime} • Closes {clinic.closingTime}</span>
-                              </div>
+                              {clinic.openingTime && clinic.closingTime && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-slate-500" />
+                                  <span>Opens {clinic.openingTime} • Closes {clinic.closingTime}</span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -346,7 +347,7 @@ export default function DoctorAppointmentsPage() {
                                   <div className="flex items-center gap-2">
                                     {getStatusIcon(appointment.status)}
                                     <h3 className="text-lg font-semibold text-slate-900">
-                                      {appointment.patientName}
+                                      {appointment.patientName || `Patient ID: ${appointment.patientId}`}
                                     </h3>
                                   </div>
                                   <Badge
@@ -365,18 +366,28 @@ export default function DoctorAppointmentsPage() {
                                   )}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600 mb-3">
+                                {/* Highlighted Date & Time */}
+                                <div className="mb-4 p-3 bg-gradient-to-r from-teal-50 to-violet-50 rounded-lg border border-teal-200">
                                   <div className="flex items-center gap-2">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    <span>
-                                      <strong>Date & Time:</strong>{' '}
-                                      {format(new Date(appointment.appointmentDateTime), 'MMM dd, yyyy h:mm a')}
-                                    </span>
+                                    <Calendar className="w-5 h-5 text-teal-600" />
+                                    <div>
+                                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Date & Time</p>
+                                      <p className="text-lg font-bold text-slate-900">
+                                        {format(new Date(appointment.appointmentDateTime), 'MMM dd, yyyy')}
+                                      </p>
+                                      <p className="text-base font-semibold text-teal-700">
+                                        {format(new Date(appointment.appointmentDateTime), 'h:mm a')}
+                                      </p>
+                                    </div>
                                   </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600 mb-3">
                                   <div className="flex items-center gap-2">
                                     <User className="w-4 h-4 text-slate-400" />
                                     <span>
-                                      <strong>Patient:</strong> {appointment.patientName}
+                                      <strong>Patient:</strong>{' '}
+                                      {appointment.patientName || `Patient ID: ${appointment.patientId}`}
                                     </span>
                                   </div>
                                   {appointment.patientEmail && (

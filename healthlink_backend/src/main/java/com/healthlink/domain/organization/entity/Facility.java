@@ -32,6 +32,9 @@ public class Facility extends BaseEntity {
     @Column(name = "address", length = 500)
     private String address;
 
+    @Column(name = "town", length = 120)
+    private String town;
+
     @Column(name = "city", length = 120)
     private String city;
 
@@ -70,4 +73,8 @@ public class Facility extends BaseEntity {
 
     @Column(name = "requires_staff_assignment", nullable = false)
     private Boolean requiresStaffAssignment = Boolean.FALSE;
+
+    // Services offered: comma-separated values like "ONLINE,ONSITE" or just "ONSITE"
+    @Column(name = "services_offered", length = 50)
+    private String servicesOffered; // e.g., "ONLINE,ONSITE" or "ONSITE"
 }

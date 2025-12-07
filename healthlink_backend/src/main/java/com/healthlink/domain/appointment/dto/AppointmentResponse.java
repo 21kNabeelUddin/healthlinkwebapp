@@ -34,4 +34,12 @@ public class AppointmentResponse {
     private String zoomMeetingPassword;
     private String zoomJoinUrl;
     private String zoomStartUrl;
+    
+    // Enriched data for frontend display
+    private String patientName;
+    private String patientEmail;
+    private String doctorName;
+    private String doctorSpecialization;
+    private String clinicName;
+    private String clinicAddress;
 }

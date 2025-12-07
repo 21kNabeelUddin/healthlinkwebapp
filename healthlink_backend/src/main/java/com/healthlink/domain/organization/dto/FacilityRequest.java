@@ -16,6 +16,7 @@ public class FacilityRequest {
     @Size(max = 500)
     private String address;
 
+    private String town;
     private String city;
     private String state;
     private String zipCode;
@@ -34,4 +35,7 @@ public class FacilityRequest {
     private Double longitude;
 
     private BigDecimal consultationFee;
+
+    // Services offered: comma-separated values like "ONLINE,ONSITE" or just "ONSITE"
+    private String servicesOffered; // e.g., "ONLINE,ONSITE" or "ONSITE"
 }

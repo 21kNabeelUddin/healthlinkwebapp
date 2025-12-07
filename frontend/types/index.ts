@@ -147,6 +147,7 @@ export interface Clinic {
   id: number;
   name: string;
   address: string;
+  town?: string;
   city: string;
   state: string;
   zipCode: string;
@@ -163,11 +164,13 @@ export interface Clinic {
   latitude?: number;
   longitude?: number;
   consultationFee?: number;
+  servicesOffered?: string; // e.g., "ONLINE,ONSITE" or "ONSITE"
 }
 
 export interface ClinicRequest {
   name: string;
   address: string;
+  town?: string;
   city: string;
   state: string;
   zipCode: string;
@@ -179,6 +182,7 @@ export interface ClinicRequest {
   consultationFee: number;
   latitude?: number;
   longitude?: number;
+  servicesOffered?: string; // e.g., "ONLINE,ONSITE" or "ONSITE"
 }
 
 export interface PatientProfileUpdateRequest {
