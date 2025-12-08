@@ -9,22 +9,32 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { format } from 'date-fns';
-import { FileText, Calendar, User, Pill } from 'lucide-react';
+import { FileText, Calendar, User, Pill, AlertCircle, Download, Printer } from 'lucide-react';
+import { Badge } from '@/marketing/ui/badge';
+
+type MedicationEntry =
+  | {
+      id?: string;
+      name?: string;
+      dosage?: string;
+      frequency?: string;
+      duration?: string;
+      instructions?: string;
+    }
+  | string;
 
 interface Prescription {
   id: string;
   patientId: string;
   doctorId: string;
   appointmentId?: string;
-  medications: Array<{
-    id: string;
-    name: string;
-    dosage: string;
-    frequency: string;
-    duration: string;
-    instructions?: string;
-  }>;
-  instructions?: string;
+  doctorName?: string;
+  patientName?: string;
+  clinicName?: string;
+  title?: string;
+  body?: string;
+  medications: MedicationEntry[];
+  instructions?: string; // legacy field
   validUntil: string;
   createdAt: string;
   warnings?: Array<{
@@ -41,6 +51,34 @@ export default function PrescriptionsPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [highlightedPrescriptionId, setHighlightedPrescriptionId] = useState<string | null>(null);
+  const formatDateSafe = (value?: string, pattern = 'MMM dd, yyyy') => {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return 'N/A';
+    return format(d, pattern);
+  };
+
+  const renderMedication = (med: MedicationEntry, idx: number) => {
+    if (typeof med === 'string') {
+      return (
+        <div key={idx} className="p-3 border border-slate-200 rounded-lg">
+          <p className="text-sm text-slate-800">{med}</p>
+        </div>
+      );
+    }
+    const hasDetails = med.dosage || med.frequency || med.duration;
+    return (
+      <div key={med.id || idx} className="p-3 border border-slate-200 rounded-lg">
+        <p className="font-medium text-slate-900">{med.name || 'Medication'}</p>
+        {hasDetails && (
+          <p className="text-sm text-slate-600">
+            {[med.dosage, med.frequency, med.duration].filter(Boolean).join(' • ')}
+          </p>
+        )}
+        {med.instructions && <p className="text-xs text-slate-500 mt-1">{med.instructions}</p>}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -89,109 +127,134 @@ export default function PrescriptionsPage() {
   if (isLoading) {
     return (
       <DashboardLayout requiredUserType="PATIENT">
-        <div className="text-center py-8">Loading prescriptions...</div>
+        <div className="text-center py-12 text-slate-600">Loading prescriptions...</div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout requiredUserType="PATIENT">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">My Prescriptions</h1>
-            <p className="text-slate-600 mt-1">View all your prescriptions and medications</p>
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-slate-500 uppercase tracking-wide">Prescriptions</p>
+              <h1 className="text-4xl font-bold text-slate-900">My Prescriptions</h1>
+              <p className="text-slate-600">View and review your medications and instructions</p>
+            </div>
           </div>
-        </div>
 
-        {prescriptions.length === 0 ? (
-          <Card className="p-8 text-center">
-            <FileText className="w-16 h-16 mx-auto text-slate-400 mb-4" />
-            <h3 className="text-lg font-semibold text-slate-700 mb-2">No prescriptions yet</h3>
-            <p className="text-slate-500">Your prescriptions will appear here after appointments</p>
-          </Card>
-        ) : (
-          <div className="grid gap-6">
-            {prescriptions.map((prescription) => (
-              <div
-                key={prescription.id}
-                id={`prescription-${prescription.id}`}
-                className={`transition-all duration-500 ${
-                  highlightedPrescriptionId === prescription.id 
-                    ? 'ring-4 ring-teal-500 shadow-xl' 
-                    : ''
-                }`}
-              >
-              <Card className={`p-6 ${
-                highlightedPrescriptionId === prescription.id 
-                  ? 'bg-teal-50' 
-                  : ''
-              }`}>
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Calendar className="w-5 h-5 text-slate-500" />
-                      <span className="text-sm text-slate-600">
-                        {format(new Date(prescription.createdAt), 'MMM dd, yyyy')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500">Valid until:</span>
-                      <span className="text-sm font-medium text-slate-700">
-                        {format(new Date(prescription.validUntil), 'MMM dd, yyyy')}
-                      </span>
-                    </div>
-                  </div>
-                  {prescription.warnings && prescription.warnings.length > 0 && (
-                    <div className="flex flex-col gap-1">
-                      {prescription.warnings.map((warning, idx) => (
-                        <span
-                          key={idx}
-                          className={`text-xs px-2 py-1 rounded ${
-                            warning.severity === 'HIGH' || warning.severity === 'CRITICAL'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {warning.severity}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+          {prescriptions.length === 0 ? (
+            <Card className="p-10 text-center">
+              <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-slate-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 mb-1">No prescriptions yet</h3>
+              <p className="text-slate-600">Your prescriptions will appear here after appointments.</p>
+            </Card>
+          ) : (
+            <div className="grid gap-5">
+              {prescriptions.map((prescription) => {
+                const isHighlighted = highlightedPrescriptionId === prescription.id;
+                return (
+                  <div
+                    key={prescription.id}
+                    id={`prescription-${prescription.id}`}
+                    className={`transition-all duration-500 ${isHighlighted ? 'ring-4 ring-teal-500 shadow-xl rounded-xl' : ''}`}
+                  >
+                    <Card className={`overflow-hidden ${isHighlighted ? 'bg-teal-50' : ''}`}>
+                      <div className="bg-gradient-to-r from-teal-50 to-violet-50 border-b border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
+                            <Pill className="w-5 h-5 text-teal-600" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-slate-600">
+                                {formatDateSafe(prescription.createdAt)}
+                              </span>
+                              <Badge variant="outline" className="bg-white text-slate-700 border-slate-200">
+                                Valid until {formatDateSafe(prescription.validUntil)}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600 mt-2">
+                              <span className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-slate-400" />
+                                <span>{prescription.doctorName || 'Doctor'}</span>
+                              </span>
+                              {prescription.clinicName && (
+                                <Badge variant="outline" className="bg-white text-slate-700 border-slate-200">
+                                  {prescription.clinicName}
+                                </Badge>
+                              )}
+                              {prescription.appointmentId && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Appt: {prescription.appointmentId.slice(0, 8)}…
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="secondary" className="inline-flex items-center gap-2">
+                            <Download className="w-4 h-4" />
+                            Download
+                          </Button>
+                          <Button variant="secondary" className="inline-flex items-center gap-2">
+                            <Printer className="w-4 h-4" />
+                            Print
+                          </Button>
+                        </div>
+                      </div>
 
-                {prescription.instructions && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-slate-700">{prescription.instructions}</p>
-                  </div>
-                )}
+                      <div className="p-5 space-y-4">
+                        {prescription.warnings && prescription.warnings.length > 0 && (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                            <div className="space-y-1 text-sm text-amber-800">
+                              {prescription.warnings.map((warning, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${warning.severity === 'HIGH' || warning.severity === 'CRITICAL'
+                                      ? 'bg-red-100 text-red-700 border-red-200'
+                                      : 'bg-amber-100 text-amber-700 border-amber-200'
+                                    }`}
+                                  >
+                                    {warning.severity}
+                                  </Badge>
+                                  <span>{warning.message}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-slate-900 flex items-center gap-2">
-                    <Pill className="w-5 h-5" />
-                    Medications
-                  </h4>
-                  {prescription.medications.map((med) => (
-                    <div key={med.id} className="pl-7 border-l-2 border-teal-200">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">{med.name}</p>
-                          <p className="text-sm text-slate-600">
-                            {med.dosage} • {med.frequency} • {med.duration}
-                          </p>
-                          {med.instructions && (
-                            <p className="text-xs text-slate-500 mt-1">{med.instructions}</p>
+                        {(prescription.instructions || prescription.body) && (
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">
+                            {prescription.instructions || prescription.body}
+                          </div>
+                        )}
+
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Medications
+                          </h4>
+                          {prescription.medications && prescription.medications.length > 0 ? (
+                            prescription.medications.map((med, idx) => renderMedication(med, idx))
+                          ) : (
+                            <p className="text-sm text-slate-600">No medications listed.</p>
                           )}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-              </div>
-            ))}
-          </div>
-        )}
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -11,18 +11,28 @@ import { format } from 'date-fns';
 import { FileText, Plus, Pill, AlertTriangle, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
+type MedicationEntry =
+  | {
+      id?: string;
+      name?: string;
+      dosage?: string;
+      frequency?: string;
+      duration?: string;
+      instructions?: string;
+    }
+  | string;
+
 interface Prescription {
   id: string;
   patientId: string;
+  doctorId?: string;
   appointmentId?: string;
-  medications: Array<{
-    id: string;
-    name: string;
-    dosage: string;
-    frequency: string;
-    duration: string;
-    instructions?: string;
-  }>;
+  doctorName?: string;
+  patientName?: string;
+  clinicName?: string;
+  title?: string;
+  body?: string;
+  medications: MedicationEntry[];
   instructions?: string;
   validUntil: string;
   createdAt: string;
@@ -37,6 +47,36 @@ export default function DoctorPrescriptionsPage() {
   const { user } = useAuth();
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const formatDateSafe = (value?: string, pattern = 'MMM dd, yyyy') => {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return 'N/A';
+    return format(d, pattern);
+  };
+
+  const renderMedication = (med: MedicationEntry, idx: number) => {
+    if (typeof med === 'string') {
+      return (
+        <div key={idx} className="pl-7 border-l-2 border-teal-200">
+          <p className="text-sm text-slate-800">{med}</p>
+        </div>
+      );
+    }
+    const hasDetails = med.dosage || med.frequency || med.duration;
+    return (
+      <div key={med.id || idx} className="pl-7 border-l-2 border-teal-200">
+        <p className="font-medium text-slate-900">{med.name || 'Medication'}</p>
+        {hasDetails && (
+          <p className="text-sm text-slate-600">
+            {[med.dosage, med.frequency, med.duration].filter(Boolean).join(' • ')}
+          </p>
+        )}
+        {med.instructions && (
+          <p className="text-xs text-slate-500 mt-1">{med.instructions}</p>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     loadPrescriptions();
@@ -109,14 +149,36 @@ export default function DoctorPrescriptionsPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar className="w-5 h-5 text-slate-500" />
                       <span className="text-sm text-slate-600">
-                        Created: {format(new Date(prescription.createdAt), 'MMM dd, yyyy')}
+                        Created: {formatDateSafe(prescription.createdAt)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
                       <span className="text-xs text-slate-500">Valid until:</span>
                       <span className="text-sm font-medium text-slate-700">
-                        {format(new Date(prescription.validUntil), 'MMM dd, yyyy')}
+                        {formatDateSafe(prescription.validUntil)}
                       </span>
+                      {prescription.appointmentId && (
+                        <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                          Appt: {prescription.appointmentId.slice(0, 8)}…
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs text-slate-700">
+                      {prescription.patientName && (
+                        <span className="px-2 py-1 bg-slate-100 rounded">
+                          Patient: {prescription.patientName}
+                        </span>
+                      )}
+                      {prescription.doctorName && (
+                        <span className="px-2 py-1 bg-slate-100 rounded">
+                          Doctor: {prescription.doctorName}
+                        </span>
+                      )}
+                      {prescription.clinicName && (
+                        <span className="px-2 py-1 bg-slate-100 rounded">
+                          Clinic: {prescription.clinicName}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {prescription.warnings && prescription.warnings.length > 0 && (
@@ -138,9 +200,9 @@ export default function DoctorPrescriptionsPage() {
                   )}
                 </div>
 
-                {prescription.instructions && (
+                {(prescription.instructions || prescription.body) && (
                   <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-slate-700">{prescription.instructions}</p>
+                    <p className="text-sm text-slate-700">{prescription.instructions || prescription.body}</p>
                   </div>
                 )}
 
@@ -149,21 +211,11 @@ export default function DoctorPrescriptionsPage() {
                     <Pill className="w-5 h-5" />
                     Medications
                   </h4>
-                  {prescription.medications.map((med) => (
-                    <div key={med.id} className="pl-7 border-l-2 border-teal-200">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">{med.name}</p>
-                          <p className="text-sm text-slate-600">
-                            {med.dosage} • {med.frequency} • {med.duration}
-                          </p>
-                          {med.instructions && (
-                            <p className="text-xs text-slate-500 mt-1">{med.instructions}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  {prescription.medications && prescription.medications.length > 0 ? (
+                    prescription.medications.map((med, idx) => renderMedication(med, idx))
+                  ) : (
+                    <p className="text-sm text-slate-600">No medications listed.</p>
+                  )}
                 </div>
 
                 {prescription.warnings && prescription.warnings.length > 0 && (

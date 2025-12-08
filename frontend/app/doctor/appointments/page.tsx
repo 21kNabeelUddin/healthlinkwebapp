@@ -10,6 +10,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { Badge } from '@/marketing/ui/badge';
 import { format } from 'date-fns';
+import Input from '@/components/ui/Input';
 import {
   Building2,
   Calendar,
@@ -37,6 +38,7 @@ export default function DoctorAppointmentsPage() {
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [selectedClinicFilter, setSelectedClinicFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [prescriptionMap, setPrescriptionMap] = useState<Record<string, boolean>>({}); // appointmentId -> hasPrescription
 
@@ -88,8 +90,29 @@ export default function DoctorAppointmentsPage() {
     }
   };
 
-  // Group appointments by clinic
+  // Apply search filter for patient name/email
+  const filteredAppointmentsBySearch = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return appointments;
+    return appointments.filter((apt) => {
+      const name = (apt.patientName || '').toLowerCase();
+      const email = (apt.patientEmail || '').toLowerCase();
+      const idStr = apt.patientId ? String(apt.patientId) : '';
+      return (
+        name.includes(term) ||
+        email.includes(term) ||
+        idStr.includes(term)
+      );
+    });
+  }, [appointments, searchTerm]);
+
+  // Group appointments by clinic (sorted by soonest appointment first)
   const clinicsWithAppointments = useMemo(() => {
+    const sortedAppointments = [...filteredAppointmentsBySearch].sort(
+      (a, b) =>
+        new Date(a.appointmentDateTime).getTime() -
+        new Date(b.appointmentDateTime).getTime()
+    );
     const clinicMap = new Map<string, ClinicWithAppointments>();
 
     // Initialize all clinics - use string keys for consistent comparison
@@ -101,7 +124,7 @@ export default function DoctorAppointmentsPage() {
     });
 
     // Group appointments by clinic - both ONLINE and ONSITE appointments go under their clinic
-    appointments.forEach((appointment) => {
+    sortedAppointments.forEach((appointment) => {
       // If appointment has a clinicId, add it to that clinic (regardless of ONLINE/ONSITE type)
       if (appointment.clinicId) {
         const appointmentClinicId = String(appointment.clinicId);
@@ -172,7 +195,7 @@ export default function DoctorAppointmentsPage() {
       // Sort by appointment count (descending)
       return b.appointments.length - a.appointments.length;
     });
-  }, [appointments, clinics, selectedClinicFilter, user?.id]);
+  }, [filteredAppointmentsBySearch, clinics, selectedClinicFilter, user?.id]);
 
   // Helper function to check if meeting can be started (5 minutes before start time)
   const canStartMeeting = (appointmentDateTime: string): boolean => {
@@ -348,6 +371,13 @@ export default function DoctorAppointmentsPage() {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    return status
+      .split('_')
+      .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   const totalAppointments = appointments.length;
 
   if (isLoading) {
@@ -374,46 +404,66 @@ export default function DoctorAppointmentsPage() {
           </div>
 
           {/* Filters */}
-          <div className="mb-6 flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Filter by Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-              >
-                <option value="">All Statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-            </div>
+          <Card className="mb-6">
+            <div className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Search
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search patient name, email, or ID"
+                      className="pl-3 pr-3 py-2"
+                    />
+                  </div>
+                </div>
 
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Filter by Clinic
-              </label>
-              <select
-                value={selectedClinicFilter}
-                onChange={(e) => setSelectedClinicFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-              >
-                <option value="all">All Clinics ({clinics.length})</option>
-                {clinics.map((clinic) => {
-                  const count = appointments.filter((apt) => String(apt.clinicId) === String(clinic.id)).length;
-                  return (
-                    <option key={clinic.id} value={clinic.id.toString()}>
-                      {clinic.name} ({count})
-                    </option>
-                  );
-                })}
-              </select>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Status
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="PENDING_PAYMENT">Pending Payment</option>
+                    <option value="CONFIRMED">Confirmed</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                    <option value="NO_SHOW">No Show</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Clinic
+                  </label>
+                  <select
+                    value={selectedClinicFilter}
+                    onChange={(e) => setSelectedClinicFilter(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  >
+                    <option value="all">All Clinics ({clinics.length})</option>
+                    {clinics.map((clinic) => {
+                      const count = appointments.filter((apt) => String(apt.clinicId) === String(clinic.id)).length;
+                      return (
+                        <option key={clinic.id} value={clinic.id.toString()}>
+                          {clinic.name} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
             </div>
-          </div>
+          </Card>
 
           {/* Clinics with Appointments */}
           {clinicsWithAppointments.length === 0 ? (
@@ -491,7 +541,7 @@ export default function DoctorAppointmentsPage() {
                                     variant="outline"
                                     className={`${getStatusColor(appointment.status)} border`}
                                   >
-                                    {appointment.status}
+                                    {getStatusLabel(appointment.status)}
                                   </Badge>
                                   <Badge variant="secondary" className="text-xs">
                                     {appointment.appointmentType}

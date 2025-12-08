@@ -169,7 +169,7 @@ export default function NewPrescriptionPage() {
       }
 
       // Add patientId (required, backend expects UUID)
-      const finalPatientId = patientId || appointment?.patientId.toString();
+      const finalPatientId = patientId || (appointment?.patientId ? appointment.patientId.toString() : '');
       if (finalPatientId) {
         prescriptionData.patientId = finalPatientId;
       } else {

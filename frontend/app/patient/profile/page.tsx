@@ -13,6 +13,8 @@ import { patientSidebarItems } from '@/app/patient/sidebar-items';
 import { Button } from '@/marketing/ui/button';
 import Input from '@/components/ui/Input';
 import { Textarea } from '@/marketing/ui/textarea';
+import { Badge } from '@/marketing/ui/badge';
+import { ShieldCheck, User as UserIcon, PhoneCall, Mail, MapPin, Calendar as CalendarIcon } from 'lucide-react';
 
 interface ProfileFormValues {
   phoneNumber: string;
@@ -77,24 +79,33 @@ export default function PatientProfilePage() {
         <Sidebar items={patientSidebarItems} currentPath="/patient/profile" />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="max-w-5xl mx-auto space-y-8">
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-md">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-slate-500 uppercase tracking-wide">Profile</p>
-                  <h1 className="text-3xl font-semibold text-slate-900">Personal Information</h1>
-                  <p className="text-slate-600">
-                    Manage the contact details that help your care team reach you
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-500 to-violet-600 text-white flex items-center justify-center text-lg font-semibold">
+                    {user ? (user.firstName?.[0] || 'P') : 'P'}
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-500 uppercase tracking-wide">Profile</p>
+                    <h1 className="text-3xl font-semibold text-slate-900">
+                      {user ? `${user.firstName} ${user.lastName}` : 'Patient'}
+                    </h1>
+                    <p className="text-slate-600">
+                      Manage the contact details that help your care team reach you
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-gradient-to-r from-teal-500 to-violet-600 text-white rounded-2xl p-4 min-w-[220px]">
+                <div className="bg-gradient-to-r from-teal-500 to-violet-600 text-white rounded-2xl p-4 min-w-[240px] shadow-sm">
                   <p className="text-sm opacity-80">Verification Status</p>
-                  <p className="text-lg font-semibold">
+                  <p className="text-lg font-semibold flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4" />
                     {user?.isVerified ? 'Verified' : 'Pending verification'}
                   </p>
-                  <p className="text-xs opacity-80 mt-1">
-                    Member since {user?.createdAt ? format(new Date(user.createdAt), 'MMM yyyy') : '—'}
-                  </p>
+                  <div className="text-xs opacity-80 mt-2 space-y-1">
+                    <p>Member since {user?.createdAt ? format(new Date(user.createdAt), 'MMM yyyy') : '—'}</p>
+                    <p>Last update {user?.updatedAt ? format(new Date(user.updatedAt), 'MMM dd, yyyy') : '—'}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -103,32 +114,41 @@ export default function PatientProfilePage() {
               <div className="lg:col-span-1 space-y-4">
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <h2 className="text-lg font-semibold text-slate-900 mb-4">Identity</h2>
-                  <div className="space-y-3 text-sm text-slate-600">
-                    <div>
-                      <p className="text-xs uppercase text-slate-400">Full Name</p>
-                      <p className="text-base text-slate-900">
-                        {user ? `${user.firstName} ${user.lastName}` : '—'}
-                      </p>
+                  <div className="space-y-4 text-sm text-slate-700">
+                    <div className="flex items-start gap-2">
+                      <UserIcon className="w-4 h-4 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs uppercase text-slate-400">Full Name</p>
+                        <p className="text-base text-slate-900">
+                          {user ? `${user.firstName} ${user.lastName}` : '—'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs uppercase text-slate-400">Email</p>
-                      <p className="text-base text-slate-900 break-all">{user?.email ?? '—'}</p>
+                    <div className="flex items-start gap-2">
+                      <Mail className="w-4 h-4 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs uppercase text-slate-400">Email</p>
+                        <p className="text-base text-slate-900 break-all">{user?.email ?? '—'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs uppercase text-slate-400">Date of Birth</p>
-                      <p className="text-base text-slate-900">{dateOfBirth}</p>
+                    <div className="flex items-start gap-2">
+                      <CalendarIcon className="w-4 h-4 text-slate-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs uppercase text-slate-400">Date of Birth</p>
+                        <p className="text-base text-slate-900">{dateOfBirth}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
                   <h2 className="text-lg font-semibold text-slate-900 mb-4">Account Preferences</h2>
-                  <div className="space-y-3 text-sm text-slate-600">
+                  <div className="space-y-3 text-sm text-slate-700">
                     <div className="flex items-center justify-between">
                       <span>Two-factor status</span>
-                      <span className="px-2 py-1 text-xs rounded-full bg-slate-100 text-slate-600">
+                      <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">
                         Email OTP
-                      </span>
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Communication</span>
@@ -140,8 +160,11 @@ export default function PatientProfilePage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h2 className="text-xl font-semibold text-slate-900 mb-6">Contact Details</h2>
+              <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
+                <div className="flex items-center gap-2">
+                  <PhoneCall className="w-5 h-5 text-teal-600" />
+                  <h2 className="text-xl font-semibold text-slate-900">Contact Details</h2>
+                </div>
                 <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
                   <Input
                     label="Phone Number"

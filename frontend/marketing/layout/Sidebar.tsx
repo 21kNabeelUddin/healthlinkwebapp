@@ -1,7 +1,7 @@
 import { LucideIcon } from "lucide-react";
 import { useState } from "react";
 
-interface SidebarItem {
+export interface SidebarItem {
   icon: LucideIcon;
   label: string;
   href: string;

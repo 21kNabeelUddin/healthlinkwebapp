@@ -83,7 +83,7 @@ function unwrapResponse<T = any>(raw: any): T {
 }
 
 // Helper to transform backend AppointmentResponse to frontend Appointment format
-function transformAppointment(backendAppointment: any): Appointment {
+  function transformAppointment(backendAppointment: any): Appointment {
   if (!backendAppointment) {
     throw new Error('Invalid appointment data');
   }
@@ -140,7 +140,8 @@ function transformAppointment(backendAppointment: any): Appointment {
     zoomMeetingPassword: backendAppointment.zoomMeetingPassword,
     zoomJoinUrl: backendAppointment.zoomJoinUrl || backendAppointment.zoomMeetingUrl,
     zoomStartUrl: backendAppointment.zoomStartUrl, // For doctors to start the meeting
-    patientId: backendAppointment.patientId ? (typeof backendAppointment.patientId === 'string' ? parseInt(backendAppointment.patientId) : backendAppointment.patientId) : 0,
+    // Keep patientId as string UUID to align with backend expectations
+    patientId: backendAppointment.patientId ? String(backendAppointment.patientId) : '',
     patientName: backendAppointment.patientName || '',
     patientEmail: backendAppointment.patientEmail,
     doctorId: backendAppointment.doctorId ? (typeof backendAppointment.doctorId === 'string' ? parseInt(backendAppointment.doctorId) : backendAppointment.doctorId) : 0,
