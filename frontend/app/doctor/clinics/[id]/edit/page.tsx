@@ -39,9 +39,9 @@ export default function EditClinicPage() {
         setValue('name', clinic.name);
         setValue('address', clinic.address);
         setValue('city', clinic.city);
-        setValue('state', clinic.province || clinic.state);
+        setValue('state', clinic.state || '');
         setValue('zipCode', clinic.zipCode || '');
-        setValue('phoneNumber', clinic.phone || '');
+        setValue('phoneNumber', clinic.phoneNumber || clinic.phone || '');
         setValue('email', clinic.email || '');
         setValue('description', clinic.description || '');
         setValue('openingTime', clinic.openingHours?.monday?.split('-')[0] || '09:00');
