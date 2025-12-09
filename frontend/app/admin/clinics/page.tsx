@@ -20,9 +20,7 @@ export default function AdminClinicsPage() {
     setIsLoading(true);
     try {
       const response = await adminApi.getAllClinics();
-      if (response.success && response.data) {
-        setClinics(response.data);
-      }
+      setClinics(response ?? []);
     } catch (error: any) {
       toast.error('Failed to load clinics');
     } finally {
@@ -30,17 +28,13 @@ export default function AdminClinicsPage() {
     }
   };
 
-  const handleDelete = async (clinicId: number) => {
+  const handleDelete = async (clinicId: string) => {
     if (!confirm('Are you sure you want to delete this clinic?')) return;
 
     try {
-      const response = await adminApi.deleteClinic(clinicId);
-      if (response.success) {
-        toast.success('Clinic deleted successfully');
-        loadClinics();
-      } else {
-        toast.error(response.message);
-      }
+      await adminApi.deleteClinic(clinicId);
+      toast.success('Clinic deleted successfully');
+      loadClinics();
     } catch (error: any) {
       toast.error('Failed to delete clinic');
     }
