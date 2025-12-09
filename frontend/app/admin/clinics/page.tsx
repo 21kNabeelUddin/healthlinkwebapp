@@ -67,9 +67,9 @@ export default function AdminClinicsPage() {
                 <div>
                   <h3 className="text-xl font-semibold text-gray-800">{clinic.name}</h3>
                   <span className={`inline-block mt-2 px-2 py-1 rounded text-xs ${
-                    clinic.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    (clinic as any).isActive ?? clinic.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                   }`}>
-                    {clinic.isActive ? 'Active' : 'Inactive'}
+                    {(clinic as any).isActive ?? clinic.active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
 
