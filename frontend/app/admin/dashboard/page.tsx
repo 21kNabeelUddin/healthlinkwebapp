@@ -63,12 +63,12 @@ export default function AdminDashboard() {
   const stats = useMemo(() => {
     if (!dashboardData) return [];
     return [
-      { icon: Users, label: 'Total Patients', value: dashboardData.totalPatients },
-      { icon: Stethoscope, label: 'Total Doctors', value: dashboardData.totalDoctors },
-      { icon: Shield, label: 'Admins', value: dashboardData.totalAdmins },
-      { icon: Calendar, label: 'Appointments', value: dashboardData.totalAppointments },
-      { icon: Building2, label: 'Clinics', value: dashboardData.totalClinics },
-      { icon: CheckCircle2, label: 'Completed', value: dashboardData.completedAppointments },
+      { icon: Users, label: 'Total Patients', value: dashboardData.totalPatients, gradient: 'from-blue-500 to-cyan-500' },
+      { icon: Stethoscope, label: 'Total Doctors', value: dashboardData.totalDoctors, gradient: 'from-emerald-500 to-teal-500' },
+      { icon: Shield, label: 'Admins', value: dashboardData.totalAdmins, gradient: 'from-slate-500 to-slate-700' },
+      { icon: Calendar, label: 'Appointments', value: dashboardData.totalAppointments, gradient: 'from-indigo-500 to-purple-500' },
+      { icon: Building2, label: 'Clinics', value: dashboardData.totalClinics, gradient: 'from-orange-500 to-amber-500' },
+      { icon: CheckCircle2, label: 'Completed', value: dashboardData.completedAppointments, gradient: 'from-green-500 to-lime-500' },
     ];
   }, [dashboardData]);
 
