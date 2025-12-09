@@ -105,7 +105,7 @@ export default function DoctorDashboard() {
     [appointments],
   );
   const pendingAppointments = Array.isArray(appointments)
-    ? appointments.filter((apt) => apt.status === 'PENDING')
+    ? appointments.filter((apt) => apt.status === 'IN_PROGRESS')
     : [];
   const activeClinics = Array.isArray(clinics)
     ? clinics.filter((clinic) => clinic.active)
