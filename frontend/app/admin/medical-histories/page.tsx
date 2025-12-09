@@ -30,7 +30,7 @@ export default function AdminMedicalHistoriesPage() {
     }
   };
 
-  const handleDelete = async (historyId: number) => {
+  const handleDelete = async (historyId: string | number) => {
     if (!confirm('Are you sure you want to delete this medical history?')) return;
 
     try {
