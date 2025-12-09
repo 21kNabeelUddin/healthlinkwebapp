@@ -8,10 +8,16 @@ interface StatsCardProps {
     value: number;
     isPositive: boolean;
   };
-  gradient: string;
+  gradient?: string;
 }
 
-export function StatsCard({ icon: Icon, label, value, trend, gradient }: StatsCardProps) {
+export function StatsCard({
+  icon: Icon,
+  label,
+  value,
+  trend,
+  gradient = "from-slate-500 to-slate-700",
+}: StatsCardProps) {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-shadow">
       <div className="flex items-start justify-between mb-4">
