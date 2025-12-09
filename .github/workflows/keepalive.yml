@@ -1,0 +1,25 @@
+name: Keep Backend Warm
+
+on:
+  schedule:
+    # GitHub Actions minimum interval is 5 minutes; adjust if Render still idles the service.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping-backend:
+    runs-on: ubuntu-latest
+    env:
+      BACKEND_URL: ${{ secrets.KEEPALIVE_BACKEND_URL }}
+    steps:
+      - name: Validate keepalive URL
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "KEEPALIVE_BACKEND_URL secret is not set."
+            exit 1
+          fi
+      - name: Warm up backend
+        run: |
+          curl -sSf --max-time 10 --retry 3 --retry-delay 2 "$BACKEND_URL" >/dev/null
+          echo "Pinged $BACKEND_URL"
+

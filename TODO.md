@@ -47,8 +47,8 @@ This document tracks all tasks and features that need to be completed before dep
 - [x] Online/On-site appointment types
 - [x] Appointment scheduling validation (emergency appointments, time validation, overlap checking)
 - [x] Video call integration (Zoom) - Full backend integration with Zoom API, automatic meeting creation for ONLINE appointments, frontend UI with join/start links
-- [x] Appointment status handling (PENDING_PAYMENT, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW)
-- [x] Zoom meeting button visibility and time validation (5 minutes before start)
+- [x] Appointment status handling (IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW) with legacy PENDING_PAYMENT/CONFIRMED migrated out of DB
+- [x] Zoom meeting buttons available at all times (time window restriction removed)
 - [x] Prescription creation time validation (only after appointment starts)
 - [x] Appointment completion confirmation dialog
 - [ ] Appointment reminders (email/SMS)
@@ -118,10 +118,10 @@ This document tracks all tasks and features that need to be completed before dep
 - [x] Doctor portal - Emergency patient creation
 - [x] Doctor portal - Prescription creation and management
 - [x] Doctor portal - Zoom meeting start links
-- [x] Doctor portal - Appointment page with all statuses (PENDING_PAYMENT, CONFIRMED, IN_PROGRESS, etc.)
-- [x] Doctor portal - Appointment action buttons (Create Prescription, Conclude Appointment)
-- [x] Doctor portal - Time-based validation for prescriptions and meetings
+- [x] Doctor portal - Appointments list/detail split with statuses (IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW)
+- [x] Doctor portal - Appointment action buttons (Create/Edit Prescription, Conclude, Cancel, Mark No Show)
 - [x] Doctor portal - Confirmation dialogs for critical actions
+- [x] Doctor portal - Zoom start allowed anytime; join links surfaced with password
 - [ ] Admin portal - User approval management
 - [ ] Admin portal - PMDC verification management
 - [ ] Staff portal - PMDC verification interface
@@ -200,6 +200,10 @@ This document tracks all tasks and features that need to be completed before dep
 - [x] Prescription creation allowed before appointment time (added time validation)
 - [x] Missing confirmation dialog for concluding appointments (added confirmation)
 - [x] Prescription form validation missing (added required field validation)
+- [x] Legacy appointment statuses in DB causing 500s (migrated to IN_PROGRESS; repository filters added)
+- [x] Patient review redirect loop after skipping review (sessionStorage guard)
+- [x] Doctor appointment detail crash on missing prescription (prescription fetch handles 404)
+- [x] Zoom join/start time restriction too strict (removed 5-minute limit)
 - [ ] Session logout when opening multiple tabs (localStorage issue)
 - [ ] Time selection interface improvement needed
 
@@ -267,7 +271,7 @@ This document tracks all tasks and features that need to be completed before dep
 
 ---
 
-**Last Updated:** 2025-12-07
+**Last Updated:** 2025-12-09
 
 ## ✅ Recently Completed Features
 
@@ -299,8 +303,17 @@ This document tracks all tasks and features that need to be completed before dep
 - ✅ Highlighted date/time display
 - ✅ Clinic filter count fix
 - ✅ Removed "Online Consultations" as separate clinic category
-- ✅ Appointment status type alignment (PENDING_PAYMENT, IN_PROGRESS, NO_SHOW)
-- ✅ Zoom meeting button visibility and time validation
+- ✅ Appointment status type alignment (IN_PROGRESS, CANCELLED, NO_SHOW; removed PENDING_PAYMENT/CONFIRMED via migrations and repository filtering)
+- ✅ Zoom meeting button visibility (start/join available anytime)
 - ✅ Prescription creation time validation
 - ✅ Appointment completion confirmation dialog
 
+### Doctor/Patient Appointments Refactor (Completed)
+- ✅ Doctor appointments split into compact list + rich detail page with actions (start Zoom, conclude, cancel, mark no-show, create/edit prescription)
+- ✅ Appointments sorted by soonest on both doctor and patient portals
+- ✅ Patient cancel button added; review redirect loop fixed via sessionStorage guard
+- ✅ Appointment detail shows medical history and prescriptions with safe date formatting
+
+### Prescription Display Enhancements (Completed)
+- ✅ Patient prescriptions show appointment, doctor, clinic, medications, instructions; download/export text
+- ✅ Handles mixed medication data shapes and missing fields gracefully
