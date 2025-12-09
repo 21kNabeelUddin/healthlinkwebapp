@@ -20,9 +20,7 @@ export default function AdminAdminsPage() {
     setIsLoading(true);
     try {
       const response = await adminApi.getAllAdmins();
-      if (response.success && response.data) {
-        setAdmins(response.data);
-      }
+      setAdmins(response ?? []);
     } catch (error: any) {
       toast.error('Failed to load admins');
     } finally {
@@ -35,12 +33,8 @@ export default function AdminAdminsPage() {
 
     try {
       const response = await adminApi.deleteAdmin(adminId);
-      if (response.success) {
-        toast.success('Admin deleted successfully');
-        loadAdmins();
-      } else {
-        toast.error(response.message);
-      }
+      toast.success('Admin deleted successfully');
+      loadAdmins();
     } catch (error: any) {
       toast.error('Failed to delete admin');
     }
