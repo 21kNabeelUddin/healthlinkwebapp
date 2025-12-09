@@ -134,9 +134,9 @@ export default function AdminAuditPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav user={null} onLogout={() => {}} />
+      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
       <div className="flex">
-        <Sidebar items={sidebarItems} />
+        <Sidebar items={sidebarItems} currentPath="/admin/audit" />
         <div className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Audit & Compliance</h1>

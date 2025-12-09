@@ -83,9 +83,9 @@ export default function EnhancedAppointmentsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav user={null} onLogout={() => {}} />
+      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
       <div className="flex">
-        <Sidebar items={sidebarItems} />
+        <Sidebar items={sidebarItems} currentPath="/admin/appointments" />
         <div className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Appointment Management</h1>

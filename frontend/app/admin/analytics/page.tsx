@@ -42,9 +42,9 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav user={null} onLogout={() => {}} />
+      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
       <div className="flex">
-        <Sidebar items={sidebarItems} />
+        <Sidebar items={sidebarItems} currentPath="/admin/analytics" />
         <div className="flex-1 p-8">
           <div className="mb-8 flex items-center justify-between">
             <div>
