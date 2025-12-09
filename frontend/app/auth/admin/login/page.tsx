@@ -27,7 +27,6 @@ export default function AdminLogin() {
       const response = await authApi.login({
         email: data.email,
         password: data.password,
-        role: 'ADMIN',
       });
 
       if (response.accessToken && response.user) {
