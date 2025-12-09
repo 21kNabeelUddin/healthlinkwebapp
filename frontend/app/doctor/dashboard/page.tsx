@@ -129,7 +129,7 @@ export default function DoctorDashboard() {
   const tasks = pendingAppointments.slice(0, 4).map((apt) => ({
     title: `Confirm ${apt.patientName} (${format(new Date(apt.appointmentDateTime), 'p')})`,
     priority: 'high' as const,
-    onComplete: () => handleAppointmentAction(apt.id, 'confirm'),
+    onComplete: () => handleAppointmentAction(String(apt.id), 'confirm'),
   }));
 
   const mapStatus = (
