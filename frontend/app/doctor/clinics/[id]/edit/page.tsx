@@ -44,8 +44,9 @@ export default function EditClinicPage() {
         setValue('phoneNumber', clinic.phoneNumber || '');
         setValue('email', clinic.email || '');
         setValue('description', clinic.description || '');
-        setValue('openingTime', clinic.openingHours?.monday?.split('-')[0] || '09:00');
-        setValue('closingTime', clinic.openingHours?.monday?.split('-')[1] || '17:00');
+        // openingHours not in Clinic type; fallback to stored openingTime/closingTime or defaults
+        setValue('openingTime', (clinic as any).openingHours?.monday?.split('-')[0] || (clinic as any).openingTime || '09:00');
+        setValue('closingTime', (clinic as any).openingHours?.monday?.split('-')[1] || (clinic as any).closingTime || '17:00');
       } else {
         toast.error('Clinic not found');
         router.push('/doctor/clinics');
