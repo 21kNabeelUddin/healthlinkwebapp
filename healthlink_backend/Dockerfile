@@ -3,7 +3,8 @@
 # Build stage
 FROM gradle:8.10.2-jdk21 AS builder
 WORKDIR /app
-COPY . .
+# Build context is the repo root; copy only the backend folder so gradlew is present at /app/gradlew
+COPY healthlink_backend/ .
 # Ensure Gradle wrapper is executable; skip tests for faster deploy (remove -x test if desired)
 RUN chmod +x gradlew && ./gradlew clean bootJar -x test
 
