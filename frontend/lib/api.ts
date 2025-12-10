@@ -13,6 +13,7 @@ import type {
   AppointmentStatus,
   MedicalHistory,
   MedicalHistoryRequest,
+  MedicalHistoryStatus,
   Clinic,
   ClinicRequest,
   SlotResponse,
@@ -707,7 +708,8 @@ function transformMedicalRecord(record: any): MedicalHistory {
     }
     
     // Treatment is the part before "Medications:" line
-    const treatmentMatch = detailsText.match(/^(.+?)(?:\n\s*\n\s*Medications:)/s);
+    // Use [\s\S] instead of . with s flag to match newlines (compatible with older TS targets)
+    const treatmentMatch = detailsText.match(/^([\s\S]+?)(?:\n\s*\n\s*Medications:)/);
     if (treatmentMatch) {
       treatment = treatmentMatch[1].trim();
     } else {
