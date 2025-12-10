@@ -15,6 +15,7 @@ import type {
   MedicalHistoryRequest,
   Clinic,
   ClinicRequest,
+  SlotResponse,
   ZoomMeeting,
   PatientProfileUpdateRequest,
   CreateEmergencyPatientRequest,
@@ -602,6 +603,14 @@ export const facilitiesApi = {
     return Array.isArray(data) ? data : [];
   },
 
+  listSlots: async (facilityId: string, date: string) => {
+    const response = await api.get(`/api/v1/facilities/${facilityId}/slots`, {
+      params: { date },
+    });
+    const data = unwrapResponse<SlotResponse[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  },
+
   listForOrganization: async (organizationId: string) => {
     const response = await api.get(`/api/v1/facilities/organization/${organizationId}`);
     const data = unwrapResponse<Clinic[]>(response.data);
@@ -929,7 +938,7 @@ export const adminApi = {
 
   getNotificationHistory: async (page: number = 0, size: number = 20): Promise<any> => {
     const response = await api.get(`/api/v1/admin/notifications/history?page=${page}&size=${size}`);
-    return response.data;
+    return unwrapResponse(response.data);
   },
 
   // Patient Management
@@ -1053,26 +1062,10 @@ export const adminApi = {
         return [];
       }
       
-      // Map backend FacilityResponse to frontend Clinic interface
+      // Map backend FacilityResponse to frontend Clinic interface (preserve UUIDs)
       return facilities.map((facility: any, index: number) => {
-        // Convert UUID string to number for compatibility (using hash of UUID)
-        const idToNumber = (id: any): number => {
-          if (typeof id === 'number') return id;
-          if (typeof id === 'string') {
-            // Simple hash of UUID string to number
-            let hash = 0;
-            for (let i = 0; i < id.length; i++) {
-              const char = id.charCodeAt(i);
-              hash = ((hash << 5) - hash) + char;
-              hash = hash & hash; // Convert to 32bit integer
-            }
-            return Math.abs(hash);
-          }
-          return index + 1; // Fallback to index-based ID
-        };
-        
         return {
-          id: idToNumber(facility.id),
+          id: String(facility.id),
           name: facility.name || `Clinic ${index + 1}`,
           address: facility.address || '',
           town: facility.town || '',
@@ -1085,7 +1078,7 @@ export const adminApi = {
           openingTime: facility.openingTime || '09:00',
           closingTime: facility.closingTime || '17:00',
           active: facility.active !== undefined ? facility.active : true,
-          doctorId: facility.doctorOwnerId ? idToNumber(facility.doctorOwnerId) : 0,
+          doctorId: facility.doctorOwnerId ? String(facility.doctorOwnerId) : '',
           doctorName: facility.doctorName || 'Unknown Doctor',
           createdAt: facility.createdAt || new Date().toISOString(),
           updatedAt: facility.updatedAt || new Date().toISOString(),

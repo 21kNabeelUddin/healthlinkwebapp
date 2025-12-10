@@ -6,14 +6,10 @@ import { useRouter } from 'next/navigation';
 import { format, isToday } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import {
-  LayoutDashboard,
   Calendar,
-  Users,
   Building2,
-  Settings,
   Clock,
   Video,
-  ClipboardList,
   TrendingUp,
   AlertCircle,
 } from 'lucide-react';
@@ -22,8 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { appointmentsApi, facilitiesApi, analyticsApi } from '@/lib/api';
 import { Appointment, Clinic } from '@/types';
 
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { StatsCard } from '@/marketing/dashboard/StatsCard';
 import { AppointmentCard } from '@/marketing/dashboard/AppointmentCard';
 import { Button } from '@/marketing/ui/button';
@@ -88,14 +83,6 @@ export default function DoctorDashboard() {
     }
   };
 
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/doctor/dashboard' },
-    { icon: Calendar, label: 'Appointments', href: '/doctor/appointments', badge: appointments.length },
-    { icon: Users, label: 'Patients', href: '/doctor/appointments' },
-    { icon: Building2, label: 'Clinics', href: '/doctor/clinics' },
-    { icon: ClipboardList, label: 'Tasks', href: '/doctor/dashboard#tasks' },
-    { icon: Settings, label: 'Settings', href: '/doctor/profile' },
-  ];
 
   const todaysAppointments = useMemo(
     () =>
@@ -151,31 +138,19 @@ export default function DoctorDashboard() {
   const formatDate = (dateString: string, pattern: string) =>
     format(new Date(dateString), pattern);
 
-  const handleLogout = () => {
-    logout();
-    router.replace('/');
-  };
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center text-slate-600">
-        Loading dashboard...
-      </div>
+      <DashboardLayout requiredUserType="DOCTOR">
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center text-slate-600">
+          Loading dashboard...
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav
-        userName={`Dr. ${user?.lastName ?? user?.firstName ?? ''}`.trim() || 'Doctor'}
-        userRole="Doctor"
-        showPortalLinks={false}
-        onLogout={handleLogout}
-      />
-
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/doctor/dashboard" />
-
+    <DashboardLayout requiredUserType="DOCTOR">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -413,7 +388,7 @@ export default function DoctorDashboard() {
           </div>
         </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

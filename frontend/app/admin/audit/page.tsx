@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { FileText, Search, Download, Filter, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Input } from '@/marketing/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/marketing/ui/card';
@@ -128,15 +127,9 @@ export default function AdminAuditPage() {
     toast.success('Audit logs exported');
   };
 
-  const sidebarItems = [
-    { icon: FileText, label: 'Audit & Compliance', href: '/admin/audit' },
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/admin/audit" />
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Audit & Compliance</h1>
@@ -279,7 +272,7 @@ export default function AdminAuditPage() {
           </Card>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

@@ -26,7 +26,10 @@ import com.healthlink.domain.webhook.WebhookPublisherService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
@@ -73,6 +76,27 @@ public class AppointmentService {
         int duration = resolveDurationMinutes(doctor, serviceOffering);
         LocalDateTime startTime = request.getAppointmentTime();
         LocalDateTime endTime = startTime.plusMinutes(duration);
+
+        // Validate within facility hours and slot alignment
+        LocalTime opening = parseTimeOrDefault(facility.getOpeningTime(), LocalTime.of(9, 0));
+        LocalTime closing = parseTimeOrDefault(facility.getClosingTime(), LocalTime.of(17, 0));
+        if (!closing.isAfter(opening)) {
+            throw new RuntimeException("Clinic closing time must be after opening time");
+        }
+        LocalDate appointmentDate = startTime.toLocalDate();
+        LocalDateTime windowStart = appointmentDate.atTime(opening);
+        LocalDateTime windowEnd = appointmentDate.atTime(closing);
+        if (startTime.isBefore(windowStart) || endTime.isAfter(windowEnd)) {
+            throw new RuntimeException("Appointment time must be within clinic working hours");
+        }
+
+        int slotMinutes = (doctor.getSlotDurationMinutes() != null && doctor.getSlotDurationMinutes() > 0)
+                ? doctor.getSlotDurationMinutes()
+                : 15;
+        long minutesFromOpen = Duration.between(windowStart, startTime).toMinutes();
+        if (minutesFromOpen % slotMinutes != 0) {
+            throw new RuntimeException("Please select a valid time slot");
+        }
         
         // Validate appointment time for emergency appointments
         Boolean isEmergency = request.getIsEmergency() != null && request.getIsEmergency();
@@ -101,6 +125,15 @@ public class AppointmentService {
         // Emergency appointments bypass availability checks - doctor is always available
         if (!isEmergency && appointmentRepository.existsOverlappingAppointment(doctor.getId(), startTime, endTime)) {
             throw new RuntimeException("Doctor is not available at this time");
+        }
+        if (!isEmergency) {
+            var facilityConflicts = appointmentRepository.findByFacilityIdAndAppointmentTimeBetween(
+                    facility.getId(), startTime, endTime);
+            boolean hasActive = facilityConflicts.stream()
+                    .anyMatch(a -> a.getStatus() != AppointmentStatus.CANCELLED);
+            if (hasActive) {
+                throw new RuntimeException("This time slot is already booked");
+            }
         }
 
         Appointment appointment = new Appointment();
@@ -496,6 +529,14 @@ public class AppointmentService {
             return serviceOffering.getDurationMinutes();
         }
         return doctor.getSlotDurationMinutes() != null ? doctor.getSlotDurationMinutes() : 15;
+    }
+
+    private LocalTime parseTimeOrDefault(String value, LocalTime fallback) {
+        try {
+            return value != null ? LocalTime.parse(value) : fallback;
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private void validateFacilityOwnership(Doctor doctor, Facility facility) {

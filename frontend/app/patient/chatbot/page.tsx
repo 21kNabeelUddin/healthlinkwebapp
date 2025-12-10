@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Send, Loader2, Paperclip, X as CloseIcon } from 'lucide-react';
+import { Sparkles, Send, Loader2, Paperclip, X as CloseIcon, Settings } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { TopNav } from '@/marketing/layout/TopNav';
@@ -11,8 +11,10 @@ import { Sidebar } from '@/marketing/layout/Sidebar';
 import { Button } from '@/marketing/ui/button';
 import { Badge } from '@/marketing/ui/badge';
 import { patientSidebarItems } from '@/app/patient/sidebar-items';
+import { ConsentDialog } from '@/components/chatbot/ConsentDialog';
 
 type ChatRole = 'user' | 'assistant';
+type ConversationState = 'INITIAL' | 'ACTIVE' | 'RESOLVING' | 'CLOSING' | 'ENDED';
 
 interface ChatMessage {
   id: string;
@@ -20,6 +22,11 @@ interface ChatMessage {
   content: string;
   timestamp: number;
   attachments?: AttachmentPreview[];
+}
+
+interface ConsentState {
+  prescriptions: boolean;
+  history: boolean;
 }
 
 const quickPrompts = [
@@ -40,6 +47,9 @@ type AttachmentPreview = {
   file: File;
 };
 
+const CONSENT_STORAGE_KEY = 'chatbot_consent';
+const CONSENT_ASKED_KEY = 'chatbot_consent_asked';
+
 export default function PatientChatbotPage() {
   const router = useRouter();
   const { user, logout, isLoading, isAuthenticated } = useAuth();
@@ -58,6 +68,34 @@ export default function PatientChatbotPage() {
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // Consent management
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [consent, setConsent] = useState<ConsentState>({ prescriptions: false, history: false });
+  
+  // Conversation state
+  const [conversationState, setConversationState] = useState<ConversationState>('INITIAL');
+
+  // Load consent from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedConsent = localStorage.getItem(CONSENT_STORAGE_KEY);
+      const consentAsked = localStorage.getItem(CONSENT_ASKED_KEY);
+      
+      if (storedConsent) {
+        try {
+          setConsent(JSON.parse(storedConsent));
+        } catch (e) {
+          console.error('Failed to parse stored consent:', e);
+        }
+      }
+      
+      // Show consent dialog if not asked before
+      if (!consentAsked && isAuthenticated && user) {
+        setShowConsentDialog(true);
+      }
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -68,6 +106,18 @@ export default function PatientChatbotPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
+
+  const handleConsent = (newConsent: ConsentState) => {
+    setConsent(newConsent);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(newConsent));
+      localStorage.setItem(CONSENT_ASKED_KEY, 'true');
+    }
+  };
+
+  const handleOpenConsentSettings = () => {
+    setShowConsentDialog(true);
+  };
 
   const handleLogout = () => {
     logout();
@@ -128,6 +178,11 @@ export default function PatientChatbotPage() {
       attachments: attachmentFiles,
     };
 
+    // Update conversation state: INITIAL -> ACTIVE on first user message
+    if (conversationState === 'INITIAL') {
+      setConversationState('ACTIVE');
+    }
+
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setError(null);
@@ -147,15 +202,27 @@ export default function PatientChatbotPage() {
             )
           : [];
 
+      // Get auth token from localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      
       const response = await fetch('/api/chatbot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
         body: JSON.stringify({
           messages: [...messages, userMessage].map((message) => ({
             role: message.role,
             content: message.content,
           })),
           attachments: attachmentPayload,
+          consent: {
+            prescriptions: consent.prescriptions,
+            history: consent.history,
+          },
+          conversationState: conversationState,
+          patientId: user?.id?.toString(),
         }),
       });
 
@@ -165,6 +232,11 @@ export default function PatientChatbotPage() {
         // If the API returned an error but with a reply message, show that
         const errorMessage = data.reply || data.error || 'Failed to reach the AI assistant.';
         throw new Error(errorMessage);
+      }
+
+      // Update conversation state if provided by backend
+      if (data.conversationState) {
+        setConversationState(data.conversationState);
       }
 
       const assistantMessage: ChatMessage = {
@@ -211,6 +283,12 @@ export default function PatientChatbotPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <ConsentDialog
+        open={showConsentDialog}
+        onClose={() => setShowConsentDialog(false)}
+        onConsent={handleConsent}
+      />
+      
       <TopNav
         userName={`${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'Patient'}
         userRole="Patient"
@@ -383,13 +461,22 @@ export default function PatientChatbotPage() {
                     </p>
                   </div>
                   <p className="text-sm text-slate-600">
-                    This chatbot uses Gemini to deliver conversational insights. It is not a
+                    This chatbot uses Groq AI to deliver conversational insights. It is not a
                     replacement for medical professionals. Double-check critical information with
                     your doctor.
                   </p>
-                  <Link href="/patient/medical-history" className="text-sm text-teal-600 font-semibold">
-                    View my records ➜
-                  </Link>
+                  <div className="flex flex-col gap-2">
+                    <Link href="/patient/medical-history" className="text-sm text-teal-600 font-semibold">
+                      View my records ➜
+                    </Link>
+                    <button
+                      onClick={handleOpenConsentSettings}
+                      className="text-sm text-slate-600 hover:text-teal-600 flex items-center gap-1"
+                    >
+                      <Settings className="w-3 h-3" />
+                      Privacy Settings
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

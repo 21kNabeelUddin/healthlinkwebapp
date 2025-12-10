@@ -71,9 +71,11 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
         // Native queries to filter out invalid statuses (PENDING_PAYMENT, CONFIRMED) at database level
         // This prevents Hibernate from trying to deserialize appointments with old enum values
+        // Also filters out soft-deleted appointments (deleted_at IS NULL)
         @Query(value = """
                 SELECT * FROM appointments 
                 WHERE doctor_id = :doctorId 
+                AND deleted_at IS NULL
                 AND status IN ('IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW')
                 """, nativeQuery = true)
         List<Appointment> findByDoctorIdWithValidStatus(@Param("doctorId") UUID doctorId);
@@ -81,9 +83,13 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         @Query(value = """
                 SELECT * FROM appointments 
                 WHERE patient_id = :patientId 
+                AND deleted_at IS NULL
                 AND status IN ('IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW')
                 """, nativeQuery = true)
         List<Appointment> findByPatientIdWithValidStatus(@Param("patientId") UUID patientId);
+
+        List<Appointment> findByFacilityIdAndAppointmentTimeBetween(UUID facilityId,
+                        LocalDateTime start, LocalDateTime end);
 
         default boolean staffHasConflictingAppointment(UUID staffId, LocalDateTime startTime,
                         LocalDateTime endTime, UUID excludeAppointmentId) {

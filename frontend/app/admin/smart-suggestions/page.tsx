@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { Lightbulb, AlertTriangle, TrendingUp, Clock, CheckCircle2, XCircle } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/marketing/ui/card';
 import { Badge } from '@/marketing/ui/badge';
@@ -115,18 +114,12 @@ export default function SmartSuggestionsPage() {
     }
   };
 
-  const sidebarItems = [
-    { icon: Lightbulb, label: 'Smart Suggestions', href: '/admin/smart-suggestions' },
-  ];
-
   const highPriorityCount = suggestions.filter(s => s.priority === 'high' && !dismissed.has(s.id)).length;
   const actionRequiredCount = suggestions.filter(s => s.actionRequired && !dismissed.has(s.id)).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/admin/smart-suggestions" />
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <main className="flex-1 p-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -232,7 +225,7 @@ export default function SmartSuggestionsPage() {
           </div>
         </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

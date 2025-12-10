@@ -6,8 +6,7 @@ import { toast } from 'react-hot-toast';
 import { ArrowLeft, Bell, Send, CheckCircle2, XCircle, Clock, Users, Filter, Search, Calendar, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminApi } from '@/lib/api';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/marketing/ui/card';
 import { Badge } from '@/marketing/ui/badge';
@@ -46,10 +45,6 @@ export default function NotificationHistoryPage() {
   });
   const [selectedNotification, setSelectedNotification] = useState<NotificationHistoryItem | null>(null);
 
-  const sidebarItems = [
-    { icon: ArrowLeft, label: 'Back to Dashboard', href: '/admin/dashboard' },
-    { icon: Send, label: 'Send Notification', href: '/admin/notifications/new' },
-  ];
 
   useEffect(() => {
     loadHistory();
@@ -59,12 +54,16 @@ export default function NotificationHistoryPage() {
     setIsLoading(true);
     try {
       const response = await adminApi.getNotificationHistory(page, 20);
-      setNotifications(response.notifications || []);
-      setTotalPages(response.totalPages || 0);
+      console.log('Notification history response:', response);
+      // Handle both wrapped and unwrapped responses
+      const data = response?.data || response;
+      setNotifications(data?.notifications || response?.notifications || []);
+      setTotalPages(data?.totalPages || response?.totalPages || 0);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Failed to load notification history';
       toast.error(errorMessage);
       console.error('Notification history load error:', error);
+      console.error('Error response:', error?.response?.data);
     } finally {
       setIsLoading(false);
     }
@@ -108,17 +107,8 @@ export default function NotificationHistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav
-        userName={user?.firstName ?? 'Admin'}
-        userRole="Admin"
-        showPortalLinks={false}
-        onLogout={logout}
-      />
-
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/admin/notifications/history" />
-
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <main className="flex-1 p-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
@@ -382,7 +372,7 @@ export default function NotificationHistoryPage() {
           </div>
         </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

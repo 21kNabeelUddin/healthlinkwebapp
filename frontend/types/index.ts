@@ -159,7 +159,7 @@ export interface MedicalHistoryRequest {
 
 // Clinic
 export interface Clinic {
-  id: number;
+  id: string;
   name: string;
   address: string;
   town?: string;
@@ -172,7 +172,7 @@ export interface Clinic {
   openingTime: string;
   closingTime: string;
   active: boolean;
-  doctorId: number;
+  doctorId: string;
   doctorName: string;
   createdAt: string;
   updatedAt: string;
@@ -203,6 +203,13 @@ export interface ClinicRequest {
 export interface PatientProfileUpdateRequest {
   phoneNumber: string;
   address: string;
+}
+
+// Appointment Slots
+export interface SlotResponse {
+  startTime: string;
+  endTime: string;
+  status: 'AVAILABLE' | 'BOOKED';
 }
 
 // Zoom Meeting

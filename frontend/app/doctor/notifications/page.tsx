@@ -8,9 +8,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { appointmentsApi } from '@/lib/api';
 import { Appointment } from '@/types';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
-import { doctorSidebarItems } from '@/app/doctor/sidebar-items';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/marketing/ui/card';
 import { Badge } from '@/marketing/ui/badge';
@@ -119,17 +117,8 @@ export default function DoctorNotificationsPage() {
   }, [appointments]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav
-        userName={user?.firstName ?? 'Doctor'}
-        userRole="Doctor"
-        showPortalLinks={false}
-        onLogout={logout}
-      />
-
-      <div className="flex">
-        <Sidebar items={doctorSidebarItems} currentPath="/doctor/notifications" />
-
+    <DashboardLayout requiredUserType="DOCTOR">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="flex-1 p-8 space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -179,7 +168,7 @@ export default function DoctorNotificationsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

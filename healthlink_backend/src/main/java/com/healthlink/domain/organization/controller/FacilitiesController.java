@@ -3,6 +3,7 @@ package com.healthlink.domain.organization.controller;
 import com.healthlink.domain.organization.dto.FacilityRequest;
 import com.healthlink.domain.organization.dto.FacilityResponse;
 import com.healthlink.domain.organization.service.FacilityService;
+import com.healthlink.domain.appointment.dto.SlotResponse;
 import com.healthlink.security.annotation.PhiAccess;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -11,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import com.healthlink.security.model.CustomUserDetails;
@@ -68,6 +70,15 @@ public class FacilitiesController {
         throw new RuntimeException("Unauthorized");
     }
 
+    @GetMapping("/{facilityId}/slots")
+    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','ADMIN')")
+    @Operation(summary = "List 15-minute slots for a facility on a given date")
+    public List<SlotResponse> listSlots(@PathVariable UUID facilityId,
+                                        @RequestParam("date") String date) {
+        LocalDate parsedDate = LocalDate.parse(date);
+        return facilityService.listSlots(facilityId, parsedDate);
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('DOCTOR','ORGANIZATION','ADMIN')")
     public FacilityResponse update(@PathVariable UUID id, @Valid @RequestBody FacilityRequest request) {
@@ -76,14 +87,16 @@ public class FacilitiesController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('DOCTOR','ORGANIZATION','ADMIN')")
-    public void delete(@PathVariable UUID id) {
-        facilityService.deleteFacility(id);
+    public void delete(@PathVariable String id) {
+        UUID facilityId = parseUuid(id);
+        facilityService.deleteFacility(facilityId);
     }
 
     @PostMapping("/{id}/activate")
     @PreAuthorize("hasAnyRole('DOCTOR','ORGANIZATION','ADMIN')")
-    public void activate(@PathVariable UUID id) {
-        facilityService.activate(id);
+    public void activate(@PathVariable String id) {
+        UUID facilityId = parseUuid(id);
+        facilityService.activate(facilityId);
     }
 
     @GetMapping
@@ -91,5 +104,14 @@ public class FacilitiesController {
     @Operation(summary = "List all facilities (Admin only)")
     public List<FacilityResponse> listAll() {
         return facilityService.listAll();
+    }
+
+    private UUID parseUuid(String raw) {
+        try {
+            return UUID.fromString(raw);
+        } catch (Exception ex) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid facility id");
+        }
     }
 }

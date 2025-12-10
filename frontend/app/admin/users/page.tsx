@@ -10,9 +10,7 @@ import {
   Users, UserCheck as UserCheckIcon, Clock, Ban, CheckCircle2,
   Mail, Phone, Calendar, MapPin
 } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
-import { adminSidebarItems } from '@/app/admin/sidebar-items';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Input } from '@/marketing/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/marketing/ui/select';
@@ -344,10 +342,8 @@ export default function AdminUsersPage() {
 
   if (selectedUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-        <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-        <div className="flex">
-        <Sidebar items={adminSidebarItems} currentPath="/admin/users" />
+      <DashboardLayout requiredUserType="ADMIN">
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
           <div className="flex-1 p-8">
             <Button variant="outline" onClick={() => setSelectedUser(null)} className="mb-4">
               ← Back to Users
@@ -355,16 +351,14 @@ export default function AdminUsersPage() {
             <UserDetailView user={selectedUser} />
           </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-        <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-        <div className="flex">
-          <Sidebar items={adminSidebarItems} currentPath="/admin/users" />
-        <div className="flex-1 p-8">
+      <DashboardLayout requiredUserType="ADMIN">
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+          <div className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">User Management</h1>
             <p className="text-gray-600">Manage all platform users</p>
@@ -1081,7 +1075,9 @@ function UserDetailView({ user }: { user: User }) {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }
 

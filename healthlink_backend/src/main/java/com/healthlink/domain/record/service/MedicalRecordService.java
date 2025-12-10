@@ -11,6 +11,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +46,7 @@ public class MedicalRecordService {
     }
 
     @PhiAccess(reason = "medical_record_view", entityType = MedicalRecord.class, idParam = "id")
+    @Transactional(readOnly = true)
     public MedicalRecordResponse get(UUID id) {
         MedicalRecord record = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Record not found"));
@@ -56,6 +58,7 @@ public class MedicalRecordService {
 
     @PhiAccess(reason = "medical_record_list", entityType = MedicalRecord.class, idParam = "patientId")
     // Cache disabled for MVP - removed @Cacheable to avoid Redis dependency
+    @Transactional(readOnly = true)
     public List<MedicalRecordResponse> listForPatient(UUID patientId) {
         enforceViewPermission(patientId);
         return repository.findByPatientIdOrderByCreatedAtDesc(patientId).stream().map(this::toResponse)

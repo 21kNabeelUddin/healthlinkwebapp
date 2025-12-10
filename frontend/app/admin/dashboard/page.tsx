@@ -32,8 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { adminApi } from '@/lib/api';
 import { AdminDashboard as AdminDashboardData } from '@/types';
 
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { StatsCard } from '@/marketing/dashboard/StatsCard';
 import { Button } from '@/marketing/ui/button';
 import { Badge } from '@/marketing/ui/badge';
@@ -106,18 +105,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/admin/dashboard' },
-    { icon: Users, label: 'Users', href: '/admin/users' },
-    { icon: Users, label: 'Patients', href: '/admin/patients' },
-    { icon: Stethoscope, label: 'Doctors', href: '/admin/doctors' },
-    { icon: Building2, label: 'Clinics', href: '/admin/clinics' },
-    { icon: Calendar, label: 'Appointments', href: '/admin/appointments' },
-    { icon: Bell, label: 'Notifications', href: '/admin/notifications/history' },
-    { icon: Activity, label: 'Analytics', href: '/admin/analytics' },
-    { icon: Shield, label: 'Audit & Compliance', href: '/admin/audit' },
-    { icon: Settings, label: 'Settings', href: '/admin/settings' },
-  ];
 
   const stats = useMemo(() => {
     if (!dashboardData) return [];
@@ -145,17 +132,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav
-        userName={user?.firstName ?? 'Admin'}
-        userRole="Admin"
-        showPortalLinks={false}
-        onLogout={handleLogout}
-      />
-
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/admin/dashboard" />
-
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <main className="flex-1 p-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -496,7 +474,7 @@ export default function AdminDashboard() {
           </div>
         </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

@@ -30,6 +30,14 @@ export default function DoctorProfilePage() {
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const formatTime12h = (time?: string) => {
+    if (!time) return '';
+    const [hours, minutes] = time.split(':').map(Number);
+    const d = new Date();
+    d.setHours(hours, minutes, 0, 0);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+
   useEffect(() => {
     if (doctorId) {
       loadDoctor();
@@ -223,7 +231,7 @@ export default function DoctorProfilePage() {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-slate-600">
                           <Clock className="w-4 h-4 text-slate-500" />
-                          <span>Opens {clinic.openingTime} • Closes {clinic.closingTime}</span>
+                          <span>Opens {formatTime12h(clinic.openingTime)} • Closes {formatTime12h(clinic.closingTime)}</span>
                         </div>
                       </div>
 

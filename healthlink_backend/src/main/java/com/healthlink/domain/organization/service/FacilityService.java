@@ -6,6 +6,7 @@ import com.healthlink.domain.organization.entity.Facility;
 import com.healthlink.domain.organization.repository.FacilityRepository;
 import com.healthlink.domain.appointment.entity.AppointmentStatus;
 import com.healthlink.domain.appointment.repository.AppointmentRepository;
+import com.healthlink.domain.appointment.dto.SlotResponse;
 import com.healthlink.domain.notification.NotificationType;
 import com.healthlink.domain.notification.service.NotificationSchedulerService;
 import com.healthlink.domain.user.entity.Doctor;
@@ -16,9 +17,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -52,11 +57,17 @@ public class FacilityService {
     }
 
     public List<FacilityResponse> listForOrganization(UUID organizationId) {
-        return facilityRepository.findByOrganizationId(organizationId).stream().map(this::toDto).toList();
+        return facilityRepository.findByOrganizationId(organizationId).stream()
+                .filter(f -> f.getDeletedAt() == null)
+                .map(this::toDto)
+                .toList();
     }
 
     public List<FacilityResponse> listForDoctor(UUID doctorId) {
-        return facilityRepository.findByDoctorOwnerId(doctorId).stream().map(this::toDto).toList();
+        return facilityRepository.findByDoctorOwnerId(doctorId).stream()
+                .filter(f -> f.getDeletedAt() == null)
+                .map(this::toDto)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +76,49 @@ public class FacilityService {
                 .filter(f -> f.getDeletedAt() == null)
                 .map(this::toDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SlotResponse> listSlots(UUID facilityId, LocalDate date) {
+        Facility facility = facilityRepository.findById(facilityId)
+                .orElseThrow(() -> new IllegalArgumentException("Facility not found"));
+
+        LocalTime opening = parseTimeOrDefault(facility.getOpeningTime(), LocalTime.of(9, 0));
+        LocalTime closing = parseTimeOrDefault(facility.getClosingTime(), LocalTime.of(17, 0));
+        if (!closing.isAfter(opening)) {
+            throw new IllegalArgumentException("Closing time must be after opening time");
+        }
+
+        Doctor owner = facility.getDoctorOwner();
+        int slotMinutes = (owner != null && owner.getSlotDurationMinutes() != null)
+                ? owner.getSlotDurationMinutes()
+                : 15;
+        if (slotMinutes <= 0) {
+            slotMinutes = 15;
+        }
+
+        LocalDateTime dayStart = date.atTime(opening);
+        LocalDateTime dayEnd = date.atTime(closing);
+
+        var appointments = appointmentRepository.findByFacilityIdAndAppointmentTimeBetween(facilityId, dayStart, dayEnd);
+        Set<LocalDateTime> bookedStarts = appointments.stream()
+                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED)
+                .map(com.healthlink.domain.appointment.entity.Appointment::getAppointmentTime)
+                .collect(Collectors.toSet());
+
+        List<SlotResponse> slots = new java.util.ArrayList<>();
+        LocalDateTime cursor = dayStart;
+        while (!cursor.plusMinutes(slotMinutes).isAfter(dayEnd)) {
+            LocalDateTime slotEnd = cursor.plusMinutes(slotMinutes);
+            boolean booked = bookedStarts.contains(cursor);
+            slots.add(SlotResponse.builder()
+                    .startTime(cursor)
+                    .endTime(slotEnd)
+                    .status(booked ? "BOOKED" : "AVAILABLE")
+                    .build());
+            cursor = slotEnd;
+        }
+        return slots;
     }
 
     public FacilityResponse update(UUID id, FacilityRequest request) {
@@ -119,11 +173,44 @@ public class FacilityService {
                 }
             }
         }
+
+        // Notify affected patients about cancellation due to clinic deletion
+        try {
+            appointments.stream()
+                    .filter(a -> a.getPatient() != null)
+                    .forEach(a -> {
+                        try {
+                            notificationSchedulerService.scheduleNotification(
+                                    a.getPatient().getId(),
+                                    NotificationType.APPOINTMENT_CANCELED,
+                                    "Appointment cancelled",
+                                    "We’re sorry, your appointment at \"" + f.getName() + "\" was cancelled because the clinic was removed. Please rebook at another clinic."
+                            );
+                        } catch (Exception ignored) {
+                        }
+
+                        if (a.getPatient().getEmail() != null) {
+                            try {
+                                emailService.sendSimpleEmail(
+                                        a.getPatient().getEmail(),
+                                        "Your appointment was cancelled",
+                                        "We’re sorry, your appointment at \"" + f.getName() + "\" was cancelled because the clinic was removed. Please rebook at another clinic."
+                                );
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    });
+        } catch (Exception ignored) {
+        }
     }
 
     public void activate(UUID id) {
         Facility f = facilityRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Facility not found"));
         f.setActive(true);
+        // Restore soft-deleted facility by clearing deletedAt
+        if (f.getDeletedAt() != null) {
+            f.setDeletedAt(null);
+        }
         facilityRepository.save(f);
     }
 
@@ -149,6 +236,14 @@ public class FacilityService {
                 .doctorOwnerId(f.getDoctorOwner() != null ? f.getDoctorOwner().getId() : null)
                 .servicesOffered(f.getServicesOffered())
                 .build();
+    }
+
+    private LocalTime parseTimeOrDefault(String value, LocalTime fallback) {
+        try {
+            return value != null ? LocalTime.parse(value) : fallback;
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private void mapRequestToEntity(FacilityRequest request, Facility facility) {

@@ -6,6 +6,9 @@ import com.healthlink.domain.admin.notification.dto.*;
 import com.healthlink.domain.admin.notification.entity.*;
 import com.healthlink.domain.admin.notification.repository.AdminNotificationRepository;
 import com.healthlink.domain.notification.NotificationType;
+import com.healthlink.domain.notification.NotificationStatus;
+import com.healthlink.domain.notification.entity.Notification;
+import com.healthlink.domain.notification.repository.NotificationRepository;
 import com.healthlink.domain.notification.service.NotificationSchedulerService;
 import com.healthlink.domain.user.enums.UserRole;
 import com.healthlink.domain.user.repository.UserRepository;
@@ -31,6 +34,7 @@ public class AdminNotificationService {
     private final AdminNotificationRepository adminNotificationRepository;
     private final UserRepository userRepository;
     private final NotificationSchedulerService notificationSchedulerService;
+    private final NotificationRepository notificationRepository;
     private final EmailService emailService;
     private final PushNotificationService pushNotificationService;
     private final ObjectMapper objectMapper;
@@ -135,12 +139,18 @@ public class AdminNotificationService {
                 for (SendCustomNotificationRequest.NotificationChannel channel : request.getChannels()) {
                     switch (channel) {
                         case IN_APP -> {
-                            notificationSchedulerService.scheduleNotification(
-                                    recipientId,
-                                    NotificationType.APPOINTMENT_REMINDER, // Using existing type, could add ADMIN_MESSAGE
-                                    request.getTitle(),
-                                    request.getMessage()
-                            );
+                            try {
+                                notificationSchedulerService.scheduleNotification(
+                                        recipientId,
+                                        NotificationType.APPOINTMENT_REMINDER, // Using existing type, could add ADMIN_MESSAGE
+                                        request.getTitle(),
+                                        request.getMessage()
+                                );
+                            } catch (Exception e) {
+                                // Fallback: Create notification directly if RabbitMQ is unavailable
+                                log.warn("RabbitMQ unavailable, creating notification directly for user {}", recipientId, e);
+                                createNotificationDirectly(recipientId, request.getTitle(), request.getMessage());
+                            }
                         }
                         case EMAIL -> {
                             userRepository.findById(recipientId)
@@ -250,6 +260,26 @@ public class AdminNotificationService {
                 .map(SendCustomNotificationRequest.NotificationChannel::valueOf)
                 .collect(Collectors.toList()));
         return request;
+    }
+
+    /**
+     * Create notification directly in database when RabbitMQ is unavailable.
+     */
+    private void createNotificationDirectly(UUID userId, String title, String message) {
+        try {
+            Notification notification = new Notification();
+            notification.setUserId(userId);
+            notification.setType(NotificationType.APPOINTMENT_REMINDER);
+            notification.setTitle(title);
+            notification.setMessage(message);
+            notification.setStatus(NotificationStatus.UNREAD);
+            notification.setScheduledAt(OffsetDateTime.now());
+            notificationRepository.save(notification);
+            log.info("Created notification directly for user {}", userId);
+        } catch (Exception e) {
+            log.error("Failed to create notification directly for user {}", userId, e);
+            throw e;
+        }
     }
 }
 

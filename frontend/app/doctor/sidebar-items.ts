@@ -3,8 +3,6 @@ import {
   Calendar,
   Building2,
   FileText,
-  Activity,
-  CreditCard,
   Shield,
   Stethoscope,
   Bell,
@@ -16,8 +14,7 @@ export const doctorSidebarItems = [
   { icon: Building2, label: 'Clinics', href: '/doctor/clinics' },
   { icon: Stethoscope, label: 'Emergency', href: '/doctor/emergency/new' },
   { icon: FileText, label: 'Prescriptions', href: '/doctor/prescriptions' },
-  { icon: Activity, label: 'Analytics', href: '/doctor/analytics' },
   { icon: Bell, label: 'Notifications', href: '/doctor/notifications' },
-  { icon: Shield, label: 'Profile', href: '/doctor/profile' },
+  { icon: Shield, label: 'Profile / Settings', href: '/doctor/profile' },
 ];
 

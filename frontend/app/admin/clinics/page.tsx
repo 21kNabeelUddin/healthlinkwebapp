@@ -5,13 +5,11 @@ import { adminApi } from '@/lib/api';
 import { Clinic } from '@/types';
 import { toast } from 'react-hot-toast';
 import { Building2, MapPin, CheckCircle2, XCircle, AlertCircle, Zap, Settings, Eye } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/marketing/ui/card';
 import { Badge } from '@/marketing/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/marketing/ui/tabs';
-import { adminSidebarItems } from '@/app/admin/sidebar-items';
 
 export default function AdminClinicsPage() {
   const [clinics, setClinics] = useState<Clinic[]>([]);
@@ -47,7 +45,7 @@ export default function AdminClinicsPage() {
     }
   };
 
-  const handleDelete = async (clinicId: string | number) => {
+  const handleDelete = async (clinicId: string) => {
     if (!confirm('Are you sure you want to delete this clinic?')) return;
     try {
       await adminApi.deleteClinic(clinicId);
@@ -75,11 +73,9 @@ export default function AdminClinicsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-      <div className="flex">
-        <Sidebar items={adminSidebarItems} currentPath="/admin/clinics" />
-        <main className="flex-1 p-4 sm:px-6 lg:px-8">
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+        <div className="flex-1 p-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -184,7 +180,7 @@ export default function AdminClinicsPage() {
                               type="button"
                               variant="destructive"
                               className="w-full bg-red-600 hover:bg-red-700 text-white"
-                              onClick={() => handleDelete(String(clinic.id))}
+                              onClick={() => handleDelete(clinic.id)}
                             >
                               Delete Clinic
                             </Button>
@@ -272,8 +268,8 @@ export default function AdminClinicsPage() {
               </div>
             )}
           </div>
-        </main>
+        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -3,13 +3,23 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '@/lib/api';
 import { toast } from 'react-hot-toast';
-import { BarChart3, TrendingUp, Users, Calendar, DollarSign, Download, Filter, Clock, Plus, Trash2, Mail } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import { BarChart3, Download, Plus, Trash2, Mail } from 'lucide-react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/marketing/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/marketing/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/marketing/ui/tabs';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 
 export default function AdminAnalyticsPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -33,6 +43,10 @@ export default function AdminAnalyticsPage() {
     loadAnalytics();
   }, [timeFilter]);
 
+  useEffect(() => {
+    ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+  }, []);
+
   const loadAnalytics = async () => {
     setIsLoading(true);
     try {
@@ -49,15 +63,47 @@ export default function AdminAnalyticsPage() {
     toast.success(`Exporting report as ${format}...`);
   };
 
-  const sidebarItems = [
-    { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
-  ];
+  const makeLineOptions = (title: string) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' as const },
+      title: { display: true, text: title },
+    },
+    scales: {
+      y: { beginAtZero: true },
+    },
+  });
+
+  const userGrowthData = {
+    labels: dashboardData?.userGrowth?.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    datasets: [
+      {
+        label: 'New Users',
+        data: dashboardData?.userGrowth?.values || [5, 9, 12, 18, 22, 30],
+        borderColor: '#0ea5e9',
+        backgroundColor: 'rgba(14,165,233,0.2)',
+        tension: 0.35,
+      },
+    ],
+  };
+
+  const appointmentTrendData = {
+    labels: dashboardData?.appointmentTrends?.labels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    datasets: [
+      {
+        label: 'Appointments',
+        data: dashboardData?.appointmentTrends?.values || [3, 5, 6, 4, 8, 9, 7],
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34,197,94,0.2)',
+        tension: 0.35,
+      },
+    ],
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/admin/analytics" />
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="flex-1 p-8">
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -146,8 +192,8 @@ export default function AdminAnalyticsPage() {
                     <CardDescription>Monthly user registration trends</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64 flex items-center justify-center text-gray-400">
-                      Chart visualization would go here
+                    <div className="h-64">
+                      <Line data={userGrowthData} options={makeLineOptions('User Growth')} />
                     </div>
                   </CardContent>
                 </Card>
@@ -157,8 +203,8 @@ export default function AdminAnalyticsPage() {
                     <CardDescription>Appointment booking patterns</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-64 flex items-center justify-center text-gray-400">
-                      Chart visualization would go here
+                    <div className="h-64">
+                      <Line data={appointmentTrendData} options={makeLineOptions('Appointments')} />
                     </div>
                   </CardContent>
                 </Card>
@@ -403,7 +449,7 @@ export default function AdminAnalyticsPage() {
           )}
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

@@ -9,8 +9,7 @@ import {
   Calendar as CalendarIcon, List, Clock, Filter, Download, Send, 
   CheckCircle2, XCircle, AlertCircle, CalendarDays, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/marketing/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/marketing/ui/card';
@@ -296,17 +295,10 @@ export default function EnhancedAppointmentsPage() {
     setShowBulkActions(newSelection.size > 0);
   };
 
-  const sidebarItems = [
-    { icon: CalendarIcon, label: 'Appointments', href: '/admin/appointments' },
-  ];
-
   return (
-    <>
+    <DashboardLayout requiredUserType="ADMIN">
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-        <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-        <div className="flex">
-          <Sidebar items={sidebarItems} currentPath="/admin/appointments" />
-          <div className="flex-1 p-8">
+        <div className="flex-1 p-8">
             <div className="mb-8">
               <h1 className="text-4xl font-bold text-gray-800 mb-2">Appointment Management</h1>
               <p className="text-gray-600">Manage all platform appointments</p>
@@ -735,7 +727,8 @@ export default function EnhancedAppointmentsPage() {
           </div>
         </div>
       )}
-    </>
+      </div>
+    </DashboardLayout>
   );
 }
 

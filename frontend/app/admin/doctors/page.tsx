@@ -10,9 +10,7 @@ import {
   Calendar, TrendingUp, DollarSign, Award, AlertTriangle, Eye, 
   Settings, Ban, UserCheck, Clock, Star, Mail, Phone, Building2
 } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
-import { adminSidebarItems } from '@/app/admin/sidebar-items';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Input } from '@/marketing/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/marketing/ui/select';
@@ -259,10 +257,8 @@ export default function AdminDoctorsPage() {
   if (selectedDoctor) {
     const d = selectedDoctor;
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-        <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-        <div className="flex">
-          <Sidebar items={adminSidebarItems} currentPath="/admin/doctors" />
+      <DashboardLayout requiredUserType="ADMIN">
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
           <main className="flex-1 p-4 sm:px-6 lg:px-8">
             <div className="max-w-6xl mx-auto space-y-6">
               <Button variant="outline" onClick={() => setSelectedDoctor(null)}>
@@ -403,15 +399,13 @@ export default function AdminDoctorsPage() {
             </div>
           </main>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-      <div className="flex">
-        <Sidebar items={adminSidebarItems} currentPath="/admin/doctors" />
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <main className="flex-1 p-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -663,6 +657,6 @@ export default function AdminDoctorsPage() {
           </div>
         </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

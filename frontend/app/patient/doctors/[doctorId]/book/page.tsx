@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { appointmentsApi, facilitiesApi, patientApi } from '@/lib/api';
-import { AppointmentRequest, Doctor, Clinic } from '@/types';
+import { AppointmentRequest, Doctor, Clinic, SlotResponse } from '@/types';
 import { toast } from 'react-hot-toast';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import Card from '@/components/ui/Card';
@@ -47,6 +47,26 @@ export default function BookAppointmentPage() {
   const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null);
   const [isLoadingDoctor, setIsLoadingDoctor] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [slots, setSlots] = useState<SlotResponse[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [selectedSlotStart, setSelectedSlotStart] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+
+  const formatTime12h = (time?: string) => {
+    if (!time) return '';
+    const [hours, minutes] = time.split(':').map(Number);
+    const d = new Date();
+    d.setHours(hours, minutes, 0, 0);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const formatSlotLabel = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
 
   const {
     register,
@@ -71,13 +91,20 @@ export default function BookAppointmentPage() {
     }
   }, [doctorId]);
 
-  // Clear clinicId when switching to ONLINE appointment type
+  // When switching appointment type, ensure a matching clinic is selected (prefer first that supports type)
   useEffect(() => {
-    if (appointmentType === 'ONLINE') {
-      setValue('clinicId', undefined);
+    if (clinics.length === 0) return;
+    const matching = getAvailableClinics()[0];
+    if (matching) {
+      setValue('clinicId', matching.id, { shouldValidate: true });
+      setSelectedClinic(matching);
+    } else {
       setSelectedClinic(null);
+      setSlots([]);
+      setSelectedSlotStart(null);
     }
-  }, [appointmentType, setValue]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentType, clinics]);
 
   const loadDoctor = async () => {
     setIsLoadingDoctor(true);
@@ -145,12 +172,42 @@ export default function BookAppointmentPage() {
 
   const availableClinics = getAvailableClinics();
 
+  const fetchSlots = async (facilityId: string, date: string) => {
+    setIsLoadingSlots(true);
+    setSlots([]);
+    setSelectedSlotStart(null);
+    try {
+      const slotData = await facilitiesApi.listSlots(facilityId, date);
+      setSlots(slotData || []);
+    } catch (error) {
+      console.error('Failed to load slots', error);
+      toast.error('Unable to load time slots. Please try again.');
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedClinicId && clinics.length > 0) {
-      const clinic = clinics.find((c) => c.id === selectedClinicId);
+      const clinic = clinics.find((c) => c.id.toString() === selectedClinicId.toString());
       setSelectedClinic(clinic || null);
+      if (clinic) {
+        fetchSlots(String(clinic.id), selectedDate);
+      }
+    } else {
+      setSelectedClinic(null);
+      setSlots([]);
+      setSelectedSlotStart(null);
     }
-  }, [selectedClinicId, clinics]);
+  }, [selectedClinicId, clinics, selectedDate]);
+
+  useEffect(() => {
+    if (selectedSlotStart) {
+      setValue('appointmentDateTime', selectedSlotStart, { shouldValidate: true });
+    } else {
+      setValue('appointmentDateTime', '');
+    }
+  }, [selectedSlotStart, setValue]);
 
   const onSubmit = async (data: BookingFormData) => {
     if (!user?.id || !doctorId) return;
@@ -203,13 +260,13 @@ export default function BookAppointmentPage() {
       return;
     }
 
-    // Validate appointment time is in the future
-    if (!data.appointmentDateTime) {
-      toast.error('Please select a date and time for your appointment');
+    // Validate appointment time is in the future and aligned to slot selection
+    if (!selectedSlotStart) {
+      toast.error('Please select a time slot');
       return;
     }
 
-    const appointmentDate = new Date(data.appointmentDateTime);
+    const appointmentDate = new Date(selectedSlotStart);
     const now = new Date();
     
     // Add 1 minute buffer to account for time selection
@@ -225,7 +282,7 @@ export default function BookAppointmentPage() {
       const appointmentData: any = {
         doctorId: doctorId, // Already a UUID string from URL params
         facilityId: facilityId, // Converted to string above
-        appointmentTime: data.appointmentDateTime, // ISO datetime string
+        appointmentTime: selectedSlotStart, // ISO datetime string
         reasonForVisit: data.reason,
         isEmergency: false,
         type: data.appointmentType, // "ONLINE" or "ONSITE"
@@ -519,7 +576,7 @@ export default function BookAppointmentPage() {
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4 text-teal-600" />
                               <span>
-                                <strong>Operating Hours:</strong> Opens {selectedClinic.openingTime} • Closes {selectedClinic.closingTime}
+                                <strong>Operating Hours:</strong> Opens {formatTime12h(selectedClinic.openingTime)} • Closes {formatTime12h(selectedClinic.closingTime)}
                               </span>
                             </div>
                             {selectedClinic.consultationFee && selectedClinic.consultationFee > 0 && (
@@ -536,34 +593,77 @@ export default function BookAppointmentPage() {
                 </div>
               )}
 
-              {/* Date & Time */}
+              {/* Date & Time Slots */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   <Calendar className="w-4 h-4 inline mr-2" />
                   Date & Time *
                 </label>
-                <Input
-                  type="datetime-local"
-                  {...register('appointmentDateTime', { 
-                    required: 'Date and time is required',
-                    validate: (value) => {
-                      if (!value) return 'Date and time is required';
-                      const selectedDate = new Date(value);
-                      const now = new Date();
-                      // Allow appointments at least 1 minute in the future
-                      if (selectedDate <= now) {
-                        return 'Appointment time must be in the future';
-                      }
-                      return true;
-                    }
-                  })}
-                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} // Minimum 1 minute from now
-                  error={errors.appointmentDateTime?.message}
-                  className="w-full"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Please select a future date and time for your appointment
-                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-1">
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      Select a date to see available slots
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-slate-800">Available Slots</span>
+                      {isLoadingSlots && (
+                        <span className="text-xs text-slate-500">Loading slots...</span>
+                      )}
+                    </div>
+                    <input
+                      type="hidden"
+                      {...register('appointmentDateTime', { required: 'Please select a time slot' })}
+                      value={selectedSlotStart || ''}
+                    />
+                    {!selectedClinic && (
+                      <div className="p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600">
+                        Please select a clinic first to view time slots.
+                      </div>
+                    )}
+                    {selectedClinic && !isLoadingSlots && slots.length === 0 && (
+                      <div className="p-4 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600">
+                        No slots available for this day. Please choose another date.
+                      </div>
+                    )}
+                    {selectedClinic && slots.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {slots.map((slot) => {
+                          const booked = slot.status === 'BOOKED';
+                          const isSelected = selectedSlotStart === slot.startTime;
+                          return (
+                            <button
+                              key={slot.startTime}
+                              type="button"
+                              onClick={() => setSelectedSlotStart(slot.startTime)}
+                              disabled={booked}
+                              className={`px-3 py-2 text-sm rounded-lg border transition ${
+                                booked
+                                  ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  : isSelected
+                                  ? 'border-teal-500 bg-teal-50 text-teal-700 shadow-sm'
+                                  : 'border-slate-200 hover:border-teal-500 hover:bg-teal-50'
+                              }`}
+                            >
+                              {formatSlotLabel(slot.startTime)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {errors.appointmentDateTime && (
+                      <p className="mt-2 text-sm text-red-600">{errors.appointmentDateTime.message}</p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Reason for Appointment */}

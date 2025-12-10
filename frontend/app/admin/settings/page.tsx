@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Settings, Globe, Shield, Mail, Bell, Zap, FileCheck, Save, Eye, History, FileText } from 'lucide-react';
-import { TopNav } from '@/marketing/layout/TopNav';
-import { Sidebar } from '@/marketing/layout/Sidebar';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/marketing/ui/button';
 import { Input } from '@/marketing/ui/input';
 import { Label } from '@/marketing/ui/label';
@@ -89,15 +88,9 @@ export default function AdminSettingsPage() {
     setShowTemplatePreview(true);
   };
 
-  const sidebarItems = [
-    { icon: Settings, label: 'Settings', href: '/admin/settings' },
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
-      <div className="flex">
-        <Sidebar items={sidebarItems} currentPath="/admin/settings" />
+    <DashboardLayout requiredUserType="ADMIN">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">System Settings</h1>
@@ -630,7 +623,7 @@ export default function AdminSettingsPage() {
           )}
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 
