@@ -660,27 +660,117 @@ export const analyticsApi = {
 
 // ==================== MEDICAL RECORDS API ====================
 
+// Transform backend MedicalRecordResponse to frontend MedicalHistory
+function transformMedicalRecord(record: any): MedicalHistory {
+  // Parse fields: summary contains description, details contains treatment+medications+doctor+hospital
+  let description = record.summary || record.description || '';
+  let treatment = record.treatment || '';
+  let medications = record.medications || '';
+  let doctorName = record.doctorName || 'N/A';
+  let hospitalName = record.hospitalName || 'N/A';
+  let diagnosisDate = record.createdAt || record.diagnosisDate || new Date().toISOString();
+  let status: MedicalHistoryStatus = (record.status || 'ACTIVE') as MedicalHistoryStatus;
+
+  // If details contains structured data (from the form), parse it
+  // Format: "treatment\n\nMedications: ...\nDoctor: ...\nHospital: ..."
+  if (record.details && typeof record.details === 'string') {
+    const detailsText = record.details;
+    
+    // Try to extract medications
+    const medicationsMatch = detailsText.match(/Medications:\s*(.+?)(?:\n|$)/i);
+    if (medicationsMatch) {
+      medications = medicationsMatch[1].trim();
+    }
+    
+    // Try to extract doctor name
+    const doctorMatch = detailsText.match(/Doctor:\s*(.+?)(?:\n|$)/i);
+    if (doctorMatch) {
+      doctorName = doctorMatch[1].trim();
+    }
+    
+    // Try to extract hospital name
+    const hospitalMatch = detailsText.match(/Hospital:\s*(.+?)(?:\n|$)/i);
+    if (hospitalMatch) {
+      hospitalName = hospitalMatch[1].trim();
+    }
+    
+    // Try to extract diagnosis date
+    const dateMatch = detailsText.match(/Diagnosis Date:\s*(\d{4}-\d{2}-\d{2})/i);
+    if (dateMatch && dateMatch[1]) {
+      diagnosisDate = dateMatch[1];
+    }
+    
+    // Try to extract status
+    const statusMatch = detailsText.match(/Status:\s*(ACTIVE|RESOLVED|CHRONIC|UNDER_TREATMENT)/i);
+    if (statusMatch && statusMatch[1]) {
+      status = statusMatch[1] as MedicalHistoryStatus;
+    }
+    
+    // Treatment is the part before "Medications:" line
+    const treatmentMatch = detailsText.match(/^(.+?)(?:\n\s*\n\s*Medications:)/s);
+    if (treatmentMatch) {
+      treatment = treatmentMatch[1].trim();
+    } else {
+      // If no "Medications:" found, the whole details might be treatment
+      if (!detailsText.includes('Medications:') && !detailsText.includes('Doctor:') && !detailsText.includes('Hospital:')) {
+        treatment = detailsText.trim();
+      } else {
+        // Extract everything before "Medications:"
+        const beforeMedications = detailsText.split(/Medications:/i)[0];
+        if (beforeMedications) {
+          treatment = beforeMedications.trim();
+        }
+      }
+    }
+  } else if (record.details) {
+    // If details exists but doesn't have structured format, use it as description
+    if (!description) {
+      description = record.details;
+    }
+  }
+
+  return {
+    id: String(record.id || ''), // Keep UUID as string
+    condition: record.title || record.condition || 'Untitled Record',
+    diagnosisDate: diagnosisDate,
+    description: description,
+    treatment: treatment,
+    medications: medications,
+    doctorName: doctorName,
+    hospitalName: hospitalName,
+    status: status,
+    patientId: String(record.patientId || ''), // Keep UUID as string
+    patientName: record.patientName || '',
+    createdAt: record.createdAt || new Date().toISOString(),
+    updatedAt: record.updatedAt || new Date().toISOString(),
+  };
+}
+
 export const medicalRecordsApi = {
   create: async (data: any) => {
     const response = await api.post('/api/v1/medical-records', data);
-    return unwrapResponse<MedicalHistory>(response.data);
+    const record = unwrapResponse<any>(response.data);
+    return transformMedicalRecord(record);
   },
 
   getById: async (id: string) => {
     const response = await api.get(`/api/v1/medical-records/${id}`);
-    return unwrapResponse<MedicalHistory>(response.data);
+    const record = unwrapResponse<any>(response.data);
+    return transformMedicalRecord(record);
   },
 
   listForPatient: async (patientId: string) => {
     const response = await api.get(`/api/v1/medical-records/patient/${patientId}`);
-    const data = unwrapResponse<MedicalHistory[]>(response.data);
-    // Ensure we always return an array
-    return Array.isArray(data) ? data : [];
+    const data = unwrapResponse<any[]>(response.data);
+    // Ensure we always return an array and transform each record
+    if (!Array.isArray(data)) return [];
+    return data.map(transformMedicalRecord);
   },
 
   update: async (id: string, data: any) => {
     const response = await api.put(`/api/v1/medical-records/${id}`, data);
-    return unwrapResponse<MedicalHistory>(response.data);
+    const record = unwrapResponse<any>(response.data);
+    return transformMedicalRecord(record);
   },
 
   delete: async (id: string) => {

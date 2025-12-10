@@ -131,7 +131,7 @@ export interface AppointmentRequest {
 export type MedicalHistoryStatus = 'ACTIVE' | 'RESOLVED' | 'CHRONIC' | 'UNDER_TREATMENT';
 
 export interface MedicalHistory {
-  id: number;
+  id: string; // Changed from number to string to match backend UUIDs
   condition: string;
   diagnosisDate: string;
   description: string;
@@ -140,7 +140,7 @@ export interface MedicalHistory {
   doctorName: string;
   hospitalName: string;
   status: MedicalHistoryStatus;
-  patientId: number;
+  patientId: string; // Changed from number to string to match backend UUIDs
   patientName: string;
   createdAt: string;
   updatedAt: string;
