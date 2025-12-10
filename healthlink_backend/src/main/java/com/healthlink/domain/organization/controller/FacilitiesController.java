@@ -76,8 +76,8 @@ public class FacilitiesController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('DOCTOR','ORGANIZATION','ADMIN')")
-    public void deactivate(@PathVariable UUID id) {
-        facilityService.deactivate(id);
+    public void delete(@PathVariable UUID id) {
+        facilityService.deleteFacility(id);
     }
 
     @PostMapping("/{id}/activate")

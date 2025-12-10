@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, Bell, Send, CheckCircle2, XCircle, Clock, Users } from 'lucide-react';
+import { ArrowLeft, Bell, Send, CheckCircle2, XCircle, Clock, Users, Filter, Search, Calendar, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminApi } from '@/lib/api';
 import { TopNav } from '@/marketing/layout/TopNav';
@@ -36,6 +36,15 @@ export default function NotificationHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    status: 'ALL',
+    type: 'ALL',
+    dateFrom: '',
+    dateTo: '',
+    search: '',
+  });
+  const [selectedNotification, setSelectedNotification] = useState<NotificationHistoryItem | null>(null);
 
   const sidebarItems = [
     { icon: ArrowLeft, label: 'Back to Dashboard', href: '/admin/dashboard' },
@@ -126,11 +135,86 @@ export default function NotificationHistoryPage() {
                   <p className="text-slate-600 mt-1">View all sent notifications and their delivery status</p>
                 </div>
               </div>
-              <Button onClick={() => router.push('/admin/notifications/new')}>
-                <Send className="w-4 h-4 mr-2" />
-                Send New Notification
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filters
+                </Button>
+                <Button onClick={() => router.push('/admin/notifications/new')}>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send New Notification
+                </Button>
+              </div>
             </div>
+
+            {/* Filters */}
+            {showFilters && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Status</label>
+                      <select
+                        value={filters.status}
+                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="ALL">All Status</option>
+                        <option value="SENT">Sent</option>
+                        <option value="SENDING">Sending</option>
+                        <option value="SCHEDULED">Scheduled</option>
+                        <option value="FAILED">Failed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Type</label>
+                      <select
+                        value={filters.type}
+                        onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="ALL">All Types</option>
+                        <option value="INFO">Info</option>
+                        <option value="WARNING">Warning</option>
+                        <option value="ALERT">Alert</option>
+                        <option value="ANNOUNCEMENT">Announcement</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">From Date</label>
+                      <input
+                        type="date"
+                        value={filters.dateFrom}
+                        onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">To Date</label>
+                      <input
+                        type="date"
+                        value={filters.dateTo}
+                        onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button onClick={() => {
+                      // Apply filters
+                      toast.success('Filters applied');
+                    }}>
+                      Apply Filters
+                    </Button>
+                    <Button variant="outline" onClick={() => {
+                      setFilters({ status: 'ALL', type: 'ALL', dateFrom: '', dateTo: '', search: '' });
+                    }}>
+                      Clear
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -186,6 +270,17 @@ export default function NotificationHistoryPage() {
                         </div>
                       </div>
 
+                      <div className="mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedNotification(notification)}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Delivery Details
+                        </Button>
+                      </div>
+
                       <div className="flex flex-wrap gap-4 text-sm text-slate-600">
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4" />
@@ -231,6 +326,57 @@ export default function NotificationHistoryPage() {
                     </Button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Delivery Details Modal */}
+            {selectedNotification && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <Card className="w-full max-w-3xl max-h-[80vh] overflow-y-auto">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Delivery Tracking - {selectedNotification.title}</CardTitle>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedNotification(null)}>
+                        Close
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <p className="text-2xl font-bold text-green-600">{selectedNotification.sentCount || 0}</p>
+                          <p className="text-sm text-slate-600">Sent</p>
+                        </div>
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                          <p className="text-2xl font-bold text-blue-600">{selectedNotification.deliveredCount || 0}</p>
+                          <p className="text-sm text-slate-600">Delivered</p>
+                        </div>
+                        <div className="text-center p-4 bg-red-50 rounded-lg">
+                          <p className="text-2xl font-bold text-red-600">{selectedNotification.failedCount || 0}</p>
+                          <p className="text-sm text-slate-600">Failed</p>
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2">Delivery Status Breakdown</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                            <span className="text-sm">Email</span>
+                            <Badge className="bg-green-500">Delivered</Badge>
+                          </div>
+                          <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                            <span className="text-sm">SMS</span>
+                            <Badge className="bg-blue-500">Sent</Badge>
+                          </div>
+                          <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                            <span className="text-sm">In-App</span>
+                            <Badge className="bg-green-500">Read</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>

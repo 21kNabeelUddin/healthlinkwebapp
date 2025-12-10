@@ -760,6 +760,18 @@ export const doctorApi = {
     return response.data;
   },
 
+  getDoctorById: async (doctorId: string): Promise<ApiResponse<Doctor> | Doctor> => {
+    const response = await api.get(`/api/v1/search/doctors/${doctorId}`);
+    const data = response.data;
+    return (data as any)?.data ?? data;
+  },
+
+  getCurrentProfile: async (): Promise<User> => {
+    const response = await api.get('/api/v1/users/me');
+    const data = response.data;
+    return (data as any)?.data ?? data;
+  },
+
   // Clinics (using facilities API)
   getClinics: async (doctorId: string): Promise<Clinic[]> => {
     return facilitiesApi.listForDoctor(doctorId);
@@ -874,7 +886,30 @@ export const adminApi = {
   getDashboard: async (): Promise<AdminDashboard> => {
     // Using analytics API for admin dashboard
     const response = await api.get('/api/v1/analytics/admin');
-    return response.data;
+    const data = response.data;
+    // Handle different response structures
+    if (data && typeof data === 'object') {
+      // If data is already the dashboard object, return it
+      if ('totalPatients' in data) {
+        return data;
+      }
+      // If data is wrapped in another object, extract it
+      if (data.data && 'totalPatients' in data.data) {
+        return data.data;
+      }
+    }
+    // Return empty dashboard if structure is unexpected
+    return {
+      totalPatients: 0,
+      totalDoctors: 0,
+      totalAdmins: 0,
+      totalAppointments: 0,
+      totalClinics: 0,
+      totalMedicalHistories: 0,
+      pendingAppointments: 0,
+      confirmedAppointments: 0,
+      completedAppointments: 0,
+    };
   },
 
   // Custom Notifications
@@ -900,7 +935,9 @@ export const adminApi = {
   // Patient Management
   getAllPatients: async (): Promise<User[]> => {
     const response = await api.get('/api/v1/admin/users?role=PATIENT');
-    return response.data;
+    const data = response.data;
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : (data?.data ? (Array.isArray(data.data) ? data.data : []) : []);
   },
 
   getPatientById: async (patientId: string): Promise<User> => {
@@ -912,10 +949,16 @@ export const adminApi = {
     await api.delete(`/api/v1/admin/users/${patientId}`);
   },
 
+  deleteUser: async (userId: string): Promise<void> => {
+    await api.delete(`/api/v1/admin/users/${userId}`);
+  },
+
   // Doctor Management
   getAllDoctors: async (): Promise<User[]> => {
     const response = await api.get('/api/v1/admin/users?role=DOCTOR');
-    return response.data;
+    const data = response.data;
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : (data?.data ? (Array.isArray(data.data) ? data.data : []) : []);
   },
 
   getDoctorById: async (doctorId: string): Promise<User> => {
@@ -927,10 +970,23 @@ export const adminApi = {
     await api.delete(`/api/v1/admin/users/${doctorId}`);
   },
 
+  approveUser: async (userId: string): Promise<void> => {
+    await api.post(`/api/v1/admin/users/${userId}/approve`);
+  },
+
+  suspendUser: async (userId: string): Promise<void> => {
+    await api.post(`/api/v1/admin/users/${userId}/suspend`);
+  },
+
+  unsuspendUser: async (userId: string): Promise<void> => {
+    await api.post(`/api/v1/admin/users/${userId}/unsuspend`);
+  },
+
   // Admin Management
   getAllAdmins: async (): Promise<User[]> => {
-    const response = await api.get('/api/v1/users?role=ADMIN');
-    return response.data;
+    const response = await api.get('/api/v1/admin/users?role=ADMIN');
+    const data = response.data;
+    return Array.isArray(data) ? data : (data?.data ? (Array.isArray(data.data) ? data.data : []) : []);
   },
 
   getAdminById: async (adminId: string): Promise<User> => {
@@ -945,6 +1001,17 @@ export const adminApi = {
   // Appointment Management (using unified appointments API)
   getAllAppointments: async (status?: string): Promise<Appointment[]> => {
     return appointmentsApi.list(status);
+  },
+
+  sendAppointmentReminder: async (appointmentId: string): Promise<void> => {
+    await api.post(`/api/v1/appointments/${appointmentId}/remind`);
+  },
+
+  rescheduleAppointment: async (appointmentId: string, newStart: string): Promise<Appointment> => {
+    const response = await api.post(`/api/v1/appointments/${appointmentId}/reschedule`, null, {
+      params: { newStart },
+    });
+    return response.data;
   },
 
   getAppointmentById: async (appointmentId: string): Promise<Appointment> => {
@@ -967,9 +1034,73 @@ export const adminApi = {
     if (doctorId) {
       return facilitiesApi.listForDoctor(doctorId);
     }
-    // Admin can list all facilities - would need a new endpoint
-    const response = await api.get('/api/v1/facilities');
-    return response.data;
+    // Admin can list all facilities
+    try {
+      const response = await api.get('/api/v1/facilities');
+      console.log('Facilities API response:', response);
+      const data = response.data;
+      
+      // Handle different response structures
+      let facilities: any[] = [];
+      if (Array.isArray(data)) {
+        facilities = data;
+      } else if (data && Array.isArray(data.data)) {
+        facilities = data.data;
+      } else if (data && Array.isArray(data.content)) {
+        facilities = data.content;
+      } else {
+        console.warn('Unexpected facilities response structure:', data);
+        return [];
+      }
+      
+      // Map backend FacilityResponse to frontend Clinic interface
+      return facilities.map((facility: any, index: number) => {
+        // Convert UUID string to number for compatibility (using hash of UUID)
+        const idToNumber = (id: any): number => {
+          if (typeof id === 'number') return id;
+          if (typeof id === 'string') {
+            // Simple hash of UUID string to number
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) {
+              const char = id.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash; // Convert to 32bit integer
+            }
+            return Math.abs(hash);
+          }
+          return index + 1; // Fallback to index-based ID
+        };
+        
+        return {
+          id: idToNumber(facility.id),
+          name: facility.name || `Clinic ${index + 1}`,
+          address: facility.address || '',
+          town: facility.town || '',
+          city: facility.city || '',
+          state: facility.state || '',
+          zipCode: facility.zipCode || '',
+          phoneNumber: facility.phoneNumber || '',
+          email: facility.email || '',
+          description: facility.description || '',
+          openingTime: facility.openingTime || '09:00',
+          closingTime: facility.closingTime || '17:00',
+          active: facility.active !== undefined ? facility.active : true,
+          doctorId: facility.doctorOwnerId ? idToNumber(facility.doctorOwnerId) : 0,
+          doctorName: facility.doctorName || 'Unknown Doctor',
+          createdAt: facility.createdAt || new Date().toISOString(),
+          updatedAt: facility.updatedAt || new Date().toISOString(),
+          latitude: facility.latitude,
+          longitude: facility.longitude,
+          consultationFee: facility.consultationFee ? Number(facility.consultationFee) : undefined,
+          servicesOffered: facility.servicesOffered,
+        };
+      });
+    } catch (error: any) {
+      console.error('Error fetching facilities:', error);
+      console.error('Error response:', error?.response);
+      console.error('Error status:', error?.response?.status);
+      throw error;
+    }
   },
 
   getClinicById: async (clinicId: string): Promise<Clinic> => {

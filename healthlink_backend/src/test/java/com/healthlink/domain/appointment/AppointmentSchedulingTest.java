@@ -15,6 +15,8 @@ import com.healthlink.domain.user.repository.UserRepository;
 import com.healthlink.domain.appointment.service.StaffAssignmentService;
 import com.healthlink.domain.webhook.WebhookPublisherService;
 import com.healthlink.infrastructure.zoom.ZoomApiService;
+import com.healthlink.service.notification.EmailService;
+import com.healthlink.domain.notification.service.NotificationSchedulerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +44,8 @@ class AppointmentSchedulingTest {
     @Mock private StaffAssignmentService staffAssignmentService;
 
     @Mock private ZoomApiService zoomApiService;
+    @Mock private EmailService emailService;
+    @Mock private NotificationSchedulerService notificationSchedulerService;
 
 
     private AppointmentService service;
@@ -56,7 +60,8 @@ class AppointmentSchedulingTest {
     @BeforeEach
     void setUp() {
         service = new AppointmentService(appointmentRepository, doctorRepository, userRepository,
-                facilityRepository, serviceOfferingRepository, staffAssignmentService, webhookPublisherService, zoomApiService);
+                facilityRepository, serviceOfferingRepository, staffAssignmentService, webhookPublisherService,
+                zoomApiService, emailService, notificationSchedulerService);
 
         doctor = new Doctor();
         doctor.setId(doctorId);

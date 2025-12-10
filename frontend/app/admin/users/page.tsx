@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { adminApi } from '@/lib/api';
-import { User } from '@/types';
+import { adminApi, appointmentsApi, medicalRecordsApi, prescriptionsApi, facilitiesApi } from '@/lib/api';
+import { User, Appointment, MedicalHistory, Clinic } from '@/types';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { TopNav } from '@/marketing/layout/TopNav';
 import { Sidebar } from '@/marketing/layout/Sidebar';
+import { adminSidebarItems } from '@/app/admin/sidebar-items';
 import { Button } from '@/marketing/ui/button';
 import { Input } from '@/marketing/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/marketing/ui/select';
@@ -19,6 +20,34 @@ import { Checkbox } from '@/marketing/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/marketing/ui/card';
 import { Badge } from '@/marketing/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/marketing/ui/tabs';
+
+// Helper function to safely format dates
+const formatDate = (dateString: string | undefined | null): string => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    return format(date, 'MMM dd, yyyy');
+  } catch (error) {
+    return 'Invalid Date';
+  }
+};
+
+// Helper function to safely format dates for CSV
+const formatDateForCSV = (dateString: string | undefined | null): string => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    return format(date, 'yyyy-MM-dd');
+  } catch (error) {
+    return 'Invalid Date';
+  }
+};
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -28,9 +57,41 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [approvalFilter, setApprovalFilter] = useState<string>('ALL');
+  const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('ALL');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+
+  const normalizeUser = (u: User): User => {
+    const emailVerified =
+      (u as any).isEmailVerified ??
+      (u as any).emailVerified ??
+      (u as any).is_email_verified ??
+      (u as any).email_verified ??
+      u.isVerified ??
+      false;
+
+    const approval =
+      (u as any).approvalStatus ??
+      (u as any).approval_status ??
+      'PENDING';
+
+    const active =
+      (u as any).isActive ??
+      (u as any).active ??
+      (u as any).is_active ??
+      u.isActive ??
+      true;
+
+    return {
+      ...u,
+      userType: u.userType || u.role,
+      isVerified: emailVerified,
+      isActive: active,
+      approvalStatus: approval,
+    };
+  };
 
   useEffect(() => {
     loadUsers();
@@ -38,7 +99,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchQuery, roleFilter, statusFilter, dateFilter]);
+  }, [users, searchQuery, roleFilter, statusFilter, approvalFilter, activeFilter, dateFilter]);
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -49,7 +110,8 @@ export default function AdminUsersPage() {
         adminApi.getAllDoctors().catch(() => []),
         adminApi.getAllAdmins().catch(() => []),
       ]);
-      setUsers([...patients, ...doctors, ...admins]);
+      const all = [...patients, ...doctors, ...admins].map(normalizeUser);
+      setUsers(all);
     } catch (error: any) {
       toast.error('Failed to load users');
       console.error('Users load error:', error);
@@ -87,11 +149,27 @@ export default function AdminUsersPage() {
       }
     }
 
+    // Approval status filter
+    if (approvalFilter !== 'ALL') {
+      filtered = filtered.filter((user) => (user.approvalStatus || 'PENDING') === approvalFilter);
+    }
+
+    // Active status filter
+    if (activeFilter !== 'ALL') {
+      if (activeFilter === 'ACTIVE') {
+        filtered = filtered.filter((user) => user.isActive !== false);
+      } else if (activeFilter === 'SUSPENDED') {
+        filtered = filtered.filter((user) => user.isActive === false);
+      }
+    }
+
     // Date filter
     if (dateFilter !== 'ALL') {
       const now = new Date();
       filtered = filtered.filter((user) => {
+        if (!user.createdAt) return false;
         const userDate = new Date(user.createdAt);
+        if (isNaN(userDate.getTime())) return false;
         switch (dateFilter) {
           case 'TODAY':
             return userDate.toDateString() === now.toDateString();
@@ -112,9 +190,9 @@ export default function AdminUsersPage() {
 
   const stats = useMemo(() => {
     const total = users.length;
-    const active = users.filter((u) => u.isVerified).length;
-    const pending = users.filter((u) => !u.isVerified).length;
-    const suspended = 0; // TODO: Add suspended status
+    const active = users.filter((u) => u.isActive !== false).length;
+    const pending = users.filter((u) => (u.approvalStatus || 'PENDING') === 'PENDING').length;
+    const suspended = users.filter((u) => u.isActive === false).length;
     return { total, active, pending, suspended };
   }, [users]);
 
@@ -145,14 +223,44 @@ export default function AdminUsersPage() {
     try {
       switch (action) {
         case 'APPROVE':
-          toast.success(`Approved ${selectedUsers.size} users`);
+          await Promise.all(
+            Array.from(selectedUsers).map((id) => 
+              adminApi.approveUser(id).catch((err) => {
+                console.error(`Failed to approve user ${id}:`, err);
+                throw err;
+              })
+            )
+          );
+          toast.success(`Approved ${selectedUsers.size} user(s)`);
+          loadUsers();
           break;
         case 'SUSPEND':
-          toast.success(`Suspended ${selectedUsers.size} users`);
+          await Promise.all(
+            Array.from(selectedUsers).map((id) => 
+              adminApi.suspendUser(id).catch((err) => {
+                console.error(`Failed to suspend user ${id}:`, err);
+                throw err;
+              })
+            )
+          );
+          toast.success(`Suspended ${selectedUsers.size} user(s)`);
+          loadUsers();
+          break;
+        case 'UNSUSPEND':
+          await Promise.all(
+            Array.from(selectedUsers).map((id) => 
+              adminApi.unsuspendUser(id).catch((err) => {
+                console.error(`Failed to unsuspend user ${id}:`, err);
+                throw err;
+              })
+            )
+          );
+          toast.success(`Unsuspended ${selectedUsers.size} user(s)`);
+          loadUsers();
           break;
         case 'DELETE':
           if (confirm(`Delete ${selectedUsers.size} users?`)) {
-            await Promise.all(Array.from(selectedUsers).map((id) => adminApi.deletePatient(id).catch(() => {})));
+            await Promise.all(Array.from(selectedUsers).map((id) => adminApi.deleteUser(id).catch(() => {})));
             toast.success(`Deleted ${selectedUsers.size} users`);
             loadUsers();
           }
@@ -163,12 +271,47 @@ export default function AdminUsersPage() {
       }
       setSelectedUsers(new Set());
     } catch (error: any) {
-      toast.error('Bulk action failed');
+      toast.error(error?.response?.data?.message || 'Bulk action failed');
+      console.error('Bulk action error:', error);
+    }
+  };
+
+  const handleApproveUser = async (userId: string) => {
+    try {
+      await adminApi.approveUser(userId);
+      toast.success('User approved successfully');
+      loadUsers();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to approve user');
+      console.error('Approve user error:', error);
+    }
+  };
+
+  const handleSuspendUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to suspend this user?')) return;
+    try {
+      await adminApi.suspendUser(userId);
+      toast.success('User suspended successfully');
+      loadUsers();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to suspend user');
+      console.error('Suspend user error:', error);
+    }
+  };
+
+  const handleUnsuspendUser = async (userId: string) => {
+    try {
+      await adminApi.unsuspendUser(userId);
+      toast.success('User reactivated successfully');
+      loadUsers();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to unsuspend user');
+      console.error('Unsuspend user error:', error);
     }
   };
 
   const exportToCSV = () => {
-    const headers = ['ID', 'Name', 'Email', 'Phone', 'Role', 'Status', 'Created At'];
+    const headers = ['ID', 'Name', 'Email', 'Phone', 'Role', 'Verified', 'Approval', 'Active', 'Created At'];
     const rows = filteredUsers.map((user) => [
       user.id,
       `${user.firstName} ${user.lastName}`,
@@ -176,7 +319,9 @@ export default function AdminUsersPage() {
       user.phoneNumber,
       user.userType,
       user.isVerified ? 'Verified' : 'Unverified',
-      format(new Date(user.createdAt), 'yyyy-MM-dd'),
+      user.approvalStatus || 'PENDING',
+      user.isActive === false ? 'Suspended' : 'Active',
+      formatDateForCSV(user.createdAt),
     ]);
 
     const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
@@ -188,10 +333,6 @@ export default function AdminUsersPage() {
     a.click();
     toast.success('Users exported to CSV');
   };
-
-  const sidebarItems = [
-    { icon: Users, label: 'Users', href: '/admin/users' },
-  ];
 
   if (isLoading) {
     return (
@@ -206,7 +347,7 @@ export default function AdminUsersPage() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
         <div className="flex">
-          <Sidebar items={sidebarItems} currentPath="/admin/users" />
+        <Sidebar items={adminSidebarItems} currentPath="/admin/users" />
           <div className="flex-1 p-8">
             <Button variant="outline" onClick={() => setSelectedUser(null)} className="mb-4">
               ← Back to Users
@@ -222,7 +363,7 @@ export default function AdminUsersPage() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <TopNav userName="Admin" userRole="Admin" showPortalLinks={false} onLogout={() => {}} />
         <div className="flex">
-          <Sidebar items={sidebarItems} currentPath="/admin/users" />
+          <Sidebar items={adminSidebarItems} currentPath="/admin/users" />
         <div className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">User Management</h1>
@@ -306,6 +447,27 @@ export default function AdminUsersPage() {
                         <SelectItem value="UNVERIFIED">Unverified</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Select value={approvalFilter} onValueChange={setApprovalFilter}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Approval" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Approval</SelectItem>
+                        <SelectItem value="APPROVED">Approved</SelectItem>
+                        <SelectItem value="PENDING">Pending</SelectItem>
+                        <SelectItem value="REJECTED">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={activeFilter} onValueChange={setActiveFilter}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Active Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Activity</SelectItem>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Select value={dateFilter} onValueChange={setDateFilter}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Date" />
@@ -337,6 +499,10 @@ export default function AdminUsersPage() {
                         <Button variant="outline" size="sm" onClick={() => handleBulkAction('SUSPEND')}>
                           <Ban className="mr-2" size={16} />
                           Suspend
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleBulkAction('UNSUSPEND')}>
+                          <CheckCircle2 className="mr-2" size={16} />
+                          Unsuspend
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => handleBulkAction('DELETE')}>
                           <Trash2 className="mr-2" size={16} />
@@ -383,7 +549,9 @@ export default function AdminUsersPage() {
                           <th className="text-left p-3">Name</th>
                           <th className="text-left p-3">Email</th>
                           <th className="text-left p-3">Role</th>
-                          <th className="text-left p-3">Status</th>
+                          <th className="text-left p-3">Verified</th>
+                          <th className="text-left p-3">Approval</th>
+                          <th className="text-left p-3">Active</th>
                           <th className="text-left p-3">Last Active</th>
                           <th className="text-left p-3">Actions</th>
                         </tr>
@@ -414,15 +582,25 @@ export default function AdminUsersPage() {
                               </td>
                               <td className="p-3 text-gray-600">{user.email}</td>
                               <td className="p-3">
-                                <Badge variant="outline">{user.userType}</Badge>
+                                <Badge variant="outline">{user.userType || user.role || 'N/A'}</Badge>
                               </td>
                               <td className="p-3">
                                 <Badge variant={user.isVerified ? 'default' : 'secondary'}>
                                   {user.isVerified ? 'Verified' : 'Unverified'}
                                 </Badge>
                               </td>
+                              <td className="p-3">
+                                <Badge variant={user.approvalStatus === 'APPROVED' ? 'default' : user.approvalStatus === 'REJECTED' ? 'destructive' : 'secondary'}>
+                                  {user.approvalStatus || 'Pending'}
+                                </Badge>
+                              </td>
+                              <td className="p-3">
+                                <Badge variant={user.isActive === false ? 'destructive' : 'outline'}>
+                                  {user.isActive === false ? 'Suspended' : 'Active'}
+                                </Badge>
+                              </td>
                               <td className="p-3 text-sm text-gray-500">
-                                {format(new Date(user.createdAt), 'MMM dd, yyyy')}
+                                {formatDate(user.createdAt)}
                               </td>
                               <td className="p-3">
                                 <div className="flex gap-2">
@@ -430,15 +608,57 @@ export default function AdminUsersPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setSelectedUser(user)}
+                                    title="View Details"
                                   >
                                     <Eye size={16} />
                                   </Button>
+                                  {(!user.isVerified || user.approvalStatus === 'PENDING') && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleApproveUser(user.id)}
+                                      title="Approve User"
+                                    >
+                                      <UserCheck size={16} className="text-green-600" />
+                                    </Button>
+                                  )}
+                                  {user.isActive !== false && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleSuspendUser(user.id)}
+                                      title="Suspend User"
+                                    >
+                                      <Ban size={16} className="text-orange-600" />
+                                    </Button>
+                                  )}
+                                  {user.isActive === false && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleUnsuspendUser(user.id)}
+                                      title="Unsuspend User"
+                                    >
+                                      <CheckCircle2 size={16} className="text-green-600" />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleBulkAction('DELETE')}
+                                    onClick={() => {
+                                      if (confirm(`Delete user ${user.firstName} ${user.lastName}?`)) {
+                                        adminApi.deleteUser(user.id).then(() => {
+                                          toast.success('User deleted successfully');
+                                          loadUsers();
+                                        }).catch((err) => {
+                                          toast.error('Failed to delete user');
+                                          console.error(err);
+                                        });
+                                      }
+                                    }}
+                                    title="Delete User"
                                   >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={16} className="text-red-600" />
                                   </Button>
                                 </div>
                               </td>
@@ -459,11 +679,116 @@ export default function AdminUsersPage() {
 }
 
 function UserDetailView({ user }: { user: User }) {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [medicalHistory, setMedicalHistory] = useState<MedicalHistory[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
+  const isPatient = user.userType === 'PATIENT' || user.role === 'PATIENT';
+  const isDoctor = user.userType === 'DOCTOR' || user.role === 'DOCTOR';
+
+  useEffect(() => {
+    if (activeTab === 'appointments' && appointments.length === 0) {
+      loadAppointments();
+    } else if (activeTab === 'medical' && medicalHistory.length === 0 && isPatient) {
+      loadMedicalHistory();
+    } else if (activeTab === 'prescriptions' && prescriptions.length === 0 && isPatient) {
+      loadPrescriptions();
+    } else if (activeTab === 'clinics' && clinics.length === 0 && isDoctor) {
+      loadClinics();
+    }
+  }, [activeTab, user.id]);
+
+  const loadAppointments = async () => {
+    setIsLoading(true);
+    try {
+      // For admin viewing, we need to get appointments by user ID
+      // Since the API uses the authenticated user's email, we'll need to use admin endpoints
+      const allAppointments = await adminApi.getAllAppointments();
+      // Filter appointments for this user
+      const userAppointments = allAppointments.filter((apt: Appointment) => {
+        if (isPatient) {
+          return apt.patientId?.toString() === user.id;
+        } else if (isDoctor) {
+          return apt.doctorId?.toString() === user.id;
+        }
+        return false;
+      });
+      setAppointments(userAppointments);
+    } catch (error: any) {
+      console.error('Failed to load appointments:', error);
+      toast.error('Failed to load appointments');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadMedicalHistory = async () => {
+    if (!isPatient) return;
+    setIsLoading(true);
+    try {
+      const history = await medicalRecordsApi.listForPatient(user.id);
+      setMedicalHistory(Array.isArray(history) ? history : []);
+    } catch (error: any) {
+      console.error('Failed to load medical history:', error);
+      toast.error('Failed to load medical history');
+      setMedicalHistory([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadPrescriptions = async () => {
+    if (!isPatient) return;
+    setIsLoading(true);
+    try {
+      // Get prescriptions for all appointments of this patient
+      const userPrescriptions: any[] = [];
+      for (const apt of appointments) {
+        try {
+          const prescription = await prescriptionsApi.getByAppointmentId(apt.id.toString());
+          if (prescription) {
+            userPrescriptions.push(prescription);
+          }
+        } catch (error) {
+          // Prescription not found for this appointment, skip
+        }
+      }
+      setPrescriptions(userPrescriptions);
+    } catch (error: any) {
+      console.error('Failed to load prescriptions:', error);
+      toast.error('Failed to load prescriptions');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadClinics = async () => {
+    if (!isDoctor) return;
+    setIsLoading(true);
+    try {
+      const doctorClinics = await facilitiesApi.listForDoctor(user.id);
+      setClinics(Array.isArray(doctorClinics) ? doctorClinics : []);
+    } catch (error: any) {
+      console.error('Failed to load clinics:', error);
+      toast.error('Failed to load clinics');
+      setClinics([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>User Profile</CardTitle>
+          <CardDescription>
+            {isPatient && 'Patient Profile'}
+            {isDoctor && 'Doctor Profile'}
+            {!isPatient && !isDoctor && 'User Profile'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
@@ -475,12 +800,24 @@ function UserDetailView({ user }: { user: User }) {
                 {user.firstName} {user.lastName}
               </h2>
               <p className="text-gray-600">{user.email}</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="outline">{user.userType || user.role || 'N/A'}</Badge>
+                    <Badge variant={user.isVerified ? 'default' : 'secondary'}>
+                      {user.isVerified ? 'Verified' : 'Unverified'}
+                    </Badge>
+                    <Badge variant={user.approvalStatus === 'APPROVED' ? 'default' : user.approvalStatus === 'REJECTED' ? 'destructive' : 'secondary'}>
+                      {user.approvalStatus || 'Pending'}
+                    </Badge>
+                    <Badge variant={user.isActive === false ? 'destructive' : 'outline'}>
+                      {user.isActive === false ? 'Suspended' : 'Active'}
+                    </Badge>
+                  </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-2">
               <Phone size={16} className="text-gray-400" />
-              <span>{user.phoneNumber}</span>
+              <span>{user.phoneNumber || 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Mail size={16} className="text-gray-400" />
@@ -494,48 +831,248 @@ function UserDetailView({ user }: { user: User }) {
             )}
             <div className="flex items-center gap-2">
               <Calendar size={16} className="text-gray-400" />
-              <span>Joined {format(new Date(user.createdAt), 'MMM dd, yyyy')}</span>
+              <span>Joined {formatDate(user.createdAt)}</span>
             </div>
+            {isDoctor && user.specialization && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Specialization:</span>
+                <span>{user.specialization}</span>
+              </div>
+            )}
+            {isDoctor && user.yearsOfExperience && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Experience:</span>
+                <span>{user.yearsOfExperience} years</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="profile">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="appointments">Appointments</TabsTrigger>
-          <TabsTrigger value="medical">Medical Records</TabsTrigger>
-          <TabsTrigger value="payments">Payment History</TabsTrigger>
+          <TabsTrigger value="appointments">Appointments ({appointments.length})</TabsTrigger>
+          {isPatient && (
+            <>
+              <TabsTrigger value="medical">Medical Records ({medicalHistory.length})</TabsTrigger>
+              <TabsTrigger value="prescriptions">Prescriptions ({prescriptions.length})</TabsTrigger>
+            </>
+          )}
+          {isDoctor && (
+            <TabsTrigger value="clinics">Clinics ({clinics.length})</TabsTrigger>
+          )}
           <TabsTrigger value="audit">Audit Trail</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
           <Card>
             <CardContent className="pt-6">
-              <p className="text-gray-600">Profile information and settings</p>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-2">Account Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div><span className="font-medium">Email:</span> {user.email}</div>
+                    <div><span className="font-medium">Phone:</span> {user.phoneNumber || 'N/A'}</div>
+                    <div><span className="font-medium">Status:</span> {user.isVerified ? 'Verified' : 'Unverified'}</div>
+                    <div><span className="font-medium">Account Status:</span> {user.isActive !== false ? 'Active' : 'Inactive'}</div>
+                    {user.approvalStatus && (
+                      <div><span className="font-medium">Approval Status:</span> {user.approvalStatus}</div>
+                    )}
+                  </div>
+                </div>
+                {isDoctor && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Doctor Information</h3>
+                    <div className="space-y-2 text-sm">
+                      {user.specialization && <div><span className="font-medium">Specialization:</span> {user.specialization}</div>}
+                      {user.yearsOfExperience && <div><span className="font-medium">Years of Experience:</span> {user.yearsOfExperience}</div>}
+                      {user.licenseNumber && <div><span className="font-medium">License Number:</span> {user.licenseNumber}</div>}
+                      {user.pmdcId && <div><span className="font-medium">PMDC ID:</span> {user.pmdcId}</div>}
+                      {user.averageRating && <div><span className="font-medium">Average Rating:</span> {user.averageRating.toFixed(1)} / 5.0</div>}
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="appointments">
           <Card>
+            <CardHeader>
+              <CardTitle>Appointments</CardTitle>
+              <CardDescription>
+                {isPatient && 'All appointments for this patient'}
+                {isDoctor && 'All appointments for this doctor'}
+              </CardDescription>
+            </CardHeader>
             <CardContent className="pt-6">
-              <p className="text-gray-600">Appointment history</p>
+              {isLoading ? (
+                <p className="text-gray-600">Loading appointments...</p>
+              ) : appointments.length === 0 ? (
+                <p className="text-gray-600">No appointments found</p>
+              ) : (
+                <div className="space-y-4">
+                  {appointments.map((apt) => (
+                    <div key={apt.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">
+                            {format(new Date(apt.appointmentDateTime), 'MMM dd, yyyy h:mm a')}
+                          </p>
+                          <p className="text-sm text-gray-600">{apt.reason}</p>
+                          {isPatient && apt.doctorName && (
+                            <p className="text-sm text-gray-500">Dr. {apt.doctorName}</p>
+                          )}
+                          {isDoctor && apt.patientName && (
+                            <p className="text-sm text-gray-500">Patient: {apt.patientName}</p>
+                          )}
+                        </div>
+                        <Badge variant={apt.status === 'COMPLETED' ? 'default' : apt.status === 'IN_PROGRESS' ? 'secondary' : 'outline'}>
+                          {apt.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="medical">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-gray-600">Medical records</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="payments">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-gray-600">Payment history</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {isPatient && (
+          <>
+            <TabsContent value="medical">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Medical Records</CardTitle>
+                  <CardDescription>Medical history for this patient</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {isLoading ? (
+                    <p className="text-gray-600">Loading medical records...</p>
+                  ) : medicalHistory.length === 0 ? (
+                    <p className="text-gray-600">No medical records found</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {medicalHistory.map((record) => (
+                        <div key={record.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="font-medium">{record.condition || 'Medical Record'}</p>
+                            <span className="text-sm text-gray-500">
+                              {record.diagnosisDate ? format(new Date(record.diagnosisDate), 'MMM dd, yyyy') : 'N/A'}
+                            </span>
+                          </div>
+                          {record.description && <p className="text-sm text-gray-600">{record.description}</p>}
+                          {record.treatment && <p className="text-sm text-gray-600 mt-1"><strong>Treatment:</strong> {record.treatment}</p>}
+                          {record.medications && <p className="text-sm text-gray-600 mt-1"><strong>Medications:</strong> {record.medications}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="prescriptions">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Prescriptions</CardTitle>
+                  <CardDescription>Prescription history for this patient</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {isLoading ? (
+                    <p className="text-gray-600">Loading prescriptions...</p>
+                  ) : prescriptions.length === 0 ? (
+                    <p className="text-gray-600">No prescriptions found</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {prescriptions.map((prescription, idx) => (
+                        <div key={idx} className="border rounded-lg p-4">
+                          <p className="font-medium">Prescription #{idx + 1}</p>
+                          {prescription.medications && prescription.medications.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-sm font-medium">Medications:</p>
+                              <ul className="list-disc list-inside text-sm text-gray-600">
+                                {prescription.medications.map((med: any, medIdx: number) => (
+                                  <li key={medIdx}>{med.name} - {med.dosage}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </>
+        )}
+        {isDoctor && (
+          <TabsContent value="clinics">
+            <Card>
+              <CardHeader>
+                <CardTitle>Clinics</CardTitle>
+                <CardDescription>Clinics associated with this doctor</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {isLoading ? (
+                  <p className="text-gray-600">Loading clinics...</p>
+                ) : clinics.length === 0 ? (
+                  <p className="text-gray-600">No clinics found</p>
+                ) : (
+                  <div className="space-y-4">
+                    {clinics.map((clinic) => (
+                      <div key={clinic.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-medium text-lg">{clinic.name}</p>
+                            <p className="text-sm text-gray-600 mt-1">{clinic.address}</p>
+                            {clinic.city && clinic.state && (
+                              <p className="text-sm text-gray-500">
+                                {clinic.city}, {clinic.state} {clinic.zipCode}
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant={clinic.active ? 'default' : 'secondary'}>
+                            {clinic.active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
+                          {clinic.phoneNumber && (
+                            <div className="flex items-center gap-2">
+                              <Phone size={14} className="text-gray-400" />
+                              <span>{clinic.phoneNumber}</span>
+                            </div>
+                          )}
+                          {clinic.email && (
+                            <div className="flex items-center gap-2">
+                              <Mail size={14} className="text-gray-400" />
+                              <span>{clinic.email}</span>
+                            </div>
+                          )}
+                          {clinic.openingTime && clinic.closingTime && (
+                            <div className="flex items-center gap-2">
+                              <Calendar size={14} className="text-gray-400" />
+                              <span>{clinic.openingTime} - {clinic.closingTime}</span>
+                            </div>
+                          )}
+                          {clinic.consultationFee && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400">Fee:</span>
+                              <span>PKR {clinic.consultationFee}</span>
+                            </div>
+                          )}
+                        </div>
+                        {clinic.description && (
+                          <p className="text-sm text-gray-600 mt-3">{clinic.description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         <TabsContent value="audit">
           <Card>
             <CardContent className="pt-6">

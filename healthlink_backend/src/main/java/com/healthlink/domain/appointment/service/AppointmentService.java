@@ -14,6 +14,8 @@ import com.healthlink.domain.user.entity.Patient;
 import com.healthlink.domain.user.entity.Staff;
 import com.healthlink.domain.user.repository.DoctorRepository;
 import com.healthlink.domain.user.repository.UserRepository;
+import com.healthlink.domain.notification.NotificationType;
+import com.healthlink.domain.notification.service.NotificationSchedulerService;
 
 import com.healthlink.infrastructure.zoom.ZoomApiService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
@@ -43,6 +46,8 @@ public class AppointmentService {
     private final WebhookPublisherService webhookPublisherService;
 
     private final ZoomApiService zoomApiService;
+    private final com.healthlink.service.notification.EmailService emailService;
+    private final NotificationSchedulerService notificationSchedulerService;
 
 
     public AppointmentResponse createAppointment(CreateAppointmentRequest request, String patientEmail) {
@@ -298,6 +303,86 @@ public class AppointmentService {
         return mapToResponse(appointmentRepository.save(appointment));
     }
 
+    public AppointmentResponse rescheduleAppointment(UUID appointmentId, java.time.LocalDateTime newStartTime) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+        if (newStartTime == null) {
+            throw new RuntimeException("New start time is required");
+        }
+
+        // Keep same duration
+        int durationMinutes = 30;
+        if (appointment.getEndTime() != null && appointment.getAppointmentTime() != null) {
+            durationMinutes = (int) java.time.Duration.between(appointment.getAppointmentTime(), appointment.getEndTime()).toMinutes();
+            if (durationMinutes <= 0) {
+                durationMinutes = 30;
+            }
+        }
+
+        appointment.setAppointmentTime(newStartTime);
+        appointment.setEndTime(newStartTime.plusMinutes(durationMinutes));
+
+        Appointment saved = appointmentRepository.save(appointment);
+        sendRescheduleNotifications(saved);
+        return mapToResponse(saved);
+    }
+
+    private void sendRescheduleNotifications(Appointment appointment) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy h:mm a");
+        String friendlyTime = appointment.getAppointmentTime().format(formatter);
+
+        // Patient notification
+        if (appointment.getPatient() != null) {
+            try {
+                notificationSchedulerService.scheduleNotification(
+                        appointment.getPatient().getId(),
+                        NotificationType.APPOINTMENT_CONFIRMED,
+                        "Appointment rescheduled",
+                        "Your appointment has been rescheduled to " + friendlyTime
+                );
+
+                if (appointment.getPatient().getEmail() != null) {
+                    emailService.sendSimpleEmail(
+                            appointment.getPatient().getEmail(),
+                            "Your appointment was rescheduled",
+                            "Your appointment with " +
+                                    (appointment.getDoctor() != null ? appointment.getDoctor().getFullName() : "the doctor") +
+                                    " has been rescheduled to " + friendlyTime + "."
+                    );
+                }
+            } catch (Exception e) {
+                log.warn("Failed to send patient reschedule notification for appointment {}", appointment.getId(), e);
+            }
+        }
+
+        // Doctor notification
+        if (appointment.getDoctor() != null) {
+            try {
+                notificationSchedulerService.scheduleNotification(
+                        appointment.getDoctor().getId(),
+                        NotificationType.APPOINTMENT_CONFIRMED,
+                        "Appointment rescheduled",
+                        "Appointment with " +
+                                (appointment.getPatient() != null ? appointment.getPatient().getFullName() : "patient") +
+                                " moved to " + friendlyTime
+                );
+
+                if (appointment.getDoctor().getEmail() != null) {
+                    emailService.sendSimpleEmail(
+                            appointment.getDoctor().getEmail(),
+                            "Appointment rescheduled",
+                            "Your appointment with " +
+                                    (appointment.getPatient() != null ? appointment.getPatient().getFullName() : "patient") +
+                                    " has been rescheduled to " + friendlyTime + "."
+                    );
+                }
+            } catch (Exception e) {
+                log.warn("Failed to send doctor reschedule notification for appointment {}", appointment.getId(), e);
+            }
+        }
+    }
+
     public java.util.List<AppointmentResponse> listAppointments(String email, String status) {
         var user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -376,6 +461,18 @@ public class AppointmentService {
         return appointments.stream()
                 .map(this::mapToResponse)
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    public void sendReminder(UUID appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+        String patientEmail = appointment.getPatient().getEmail();
+        String patientName = appointment.getPatient().getFullName();
+        String doctorName = appointment.getDoctor().getFullName();
+        String timeStr = appointment.getAppointmentTime() != null
+                ? appointment.getAppointmentTime().toString()
+                : "your scheduled time";
+        emailService.sendAppointmentReminder(patientEmail, patientName, doctorName, timeStr);
     }
 
     private void updateStatusBasedOnCheckIns(Appointment appointment, LocalDateTime eventTime) {

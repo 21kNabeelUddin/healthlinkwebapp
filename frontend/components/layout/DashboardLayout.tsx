@@ -7,6 +7,7 @@ import Navbar from './Navbar';
 import { Sidebar, type SidebarItem } from '@/marketing/layout/Sidebar';
 import { patientSidebarItems } from '@/app/patient/sidebar-items';
 import { doctorSidebarItems } from '@/app/doctor/sidebar-items';
+import { adminSidebarItems } from '@/app/admin/sidebar-items';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -57,7 +58,9 @@ export default function DashboardLayout({
       ? patientSidebarItems
       : user.userType === 'DOCTOR'
         ? doctorSidebarItems
-        : undefined);
+        : user.userType === 'ADMIN'
+          ? adminSidebarItems
+          : undefined);
 
   const shouldHideSidebar =
     hideSidebar ||

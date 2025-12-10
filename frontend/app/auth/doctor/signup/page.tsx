@@ -10,6 +10,31 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import AuthLayout from '@/components/auth/AuthLayout';
 
+const SPECIALIZATION_OPTIONS = [
+  'Cardiology',
+  'Dermatology',
+  'Endocrinology',
+  'Family Medicine',
+  'Gastroenterology',
+  'Neurology',
+  'Obstetrics & Gynecology',
+  'Oncology',
+  'Orthopedics',
+  'Pediatrics',
+  'Psychiatry',
+  'Pulmonology',
+  'Radiology',
+  'Rheumatology',
+  'Urology',
+  'General Surgery',
+  'Nephrology',
+  'Ophthalmology',
+  'ENT',
+  'Other',
+];
+
+const EXPERIENCE_OPTIONS = Array.from({ length: 41 }, (_, i) => i); // 0-40 years
+
 interface SignupForm {
   email: string;
   password: string;
@@ -118,11 +143,26 @@ export default function DoctorSignup() {
           error={errors.phoneNumber?.message}
         />
 
-        <Input
-          label="Specialization"
-          {...register('specialization', { required: 'Specialization is required' })}
-          error={errors.specialization?.message}
-        />
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-700">Specialization</label>
+          <select
+            className="w-full border rounded-md px-3 py-2 text-sm"
+            {...register('specialization', { required: 'Specialization is required' })}
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Select specialization
+            </option>
+            {SPECIALIZATION_OPTIONS.map((spec) => (
+              <option key={spec} value={spec}>
+                {spec}
+              </option>
+            ))}
+          </select>
+          {errors.specialization?.message && (
+            <p className="text-sm text-red-600">{errors.specialization.message}</p>
+          )}
+        </div>
 
         <Input
           label="PMDC / License Number"
@@ -137,16 +177,29 @@ export default function DoctorSignup() {
           error={errors.licenseNumber?.message}
         />
 
-        <Input
-          label="Years of Experience"
-          type="number"
-          {...register('yearsOfExperience', {
-            required: 'Years of experience is required',
-            valueAsNumber: true,
-            min: { value: 0, message: 'Must be a positive number' },
-          })}
-          error={errors.yearsOfExperience?.message}
-        />
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-700">Years of Experience</label>
+          <select
+            className="w-full border rounded-md px-3 py-2 text-sm"
+            {...register('yearsOfExperience', {
+              required: 'Years of experience is required',
+              valueAsNumber: true,
+            })}
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Select years
+            </option>
+            {EXPERIENCE_OPTIONS.map((yr) => (
+              <option key={yr} value={yr}>
+                {yr} {yr === 1 ? 'year' : 'years'}
+              </option>
+            ))}
+          </select>
+          {errors.yearsOfExperience?.message && (
+            <p className="text-sm text-red-600">{errors.yearsOfExperience.message}</p>
+          )}
+        </div>
 
         <Button
           type="submit"

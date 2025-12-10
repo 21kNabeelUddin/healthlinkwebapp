@@ -24,6 +24,12 @@ export interface User {
   clinicCount?: number;
   activeClinicCount?: number;
   updatedAt?: string;
+  isActive?: boolean;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  pmdcId?: string;
+  averageRating?: number;
+  totalRevenue?: number;
+  totalReviews?: number;
 }
 
 // API Response Types
@@ -98,6 +104,7 @@ export interface Appointment {
   zoomStartUrl?: string; // For doctors to start the meeting
   patientId: string; // UUID string
   patientName: string;
+  consultationFee?: number;
   patientEmail?: string;
   doctorId: string; // UUID string
   doctorName: string;

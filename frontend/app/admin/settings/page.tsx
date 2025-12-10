@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Settings, Globe, Shield, Mail, Bell, Zap, FileCheck, Save } from 'lucide-react';
+import { Settings, Globe, Shield, Mail, Bell, Zap, FileCheck, Save, Eye, History, FileText } from 'lucide-react';
 import { TopNav } from '@/marketing/layout/TopNav';
 import { Sidebar } from '@/marketing/layout/Sidebar';
 import { Button } from '@/marketing/ui/button';
@@ -53,8 +53,40 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const [templatePreview, setTemplatePreview] = useState('');
+  const [versionHistory, setVersionHistory] = useState([
+    { id: '1', version: '2.1.0', changedBy: 'Admin User', changedAt: '2024-12-10 10:30 AM', changes: 'Updated security settings' },
+    { id: '2', version: '2.0.5', changedBy: 'Admin User', changedAt: '2024-12-08 2:15 PM', changes: 'Modified notification preferences' },
+    { id: '3', version: '2.0.0', changedBy: 'System', changedAt: '2024-12-01 9:00 AM', changes: 'Initial configuration' },
+  ]);
+
   const handleSave = async (section: string) => {
+    // Add to version history
+    setVersionHistory([{
+      id: Date.now().toString(),
+      version: '2.1.1',
+      changedBy: 'Admin User',
+      changedAt: new Date().toLocaleString(),
+      changes: `Updated ${section} settings`,
+    }, ...versionHistory]);
     toast.success(`${section} settings saved successfully`);
+  };
+
+  const previewTemplate = (type: 'email' | 'sms') => {
+    if (type === 'email') {
+      setTemplatePreview(`
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>HealthLink+ Notification</h2>
+          <p>This is a preview of the email template.</p>
+          <p>Platform: ${settings.general.platformName}</p>
+          <p>Timezone: ${settings.general.timezone}</p>
+        </div>
+      `);
+    } else {
+      setTemplatePreview('SMS Template Preview:\n\nHealthLink+ Notification\nThis is a preview of the SMS template.');
+    }
+    setShowTemplatePreview(true);
   };
 
   const sidebarItems = [
@@ -97,6 +129,14 @@ export default function AdminSettingsPage() {
               <TabsTrigger value="compliance">
                 <FileCheck className="mr-2" size={16} />
                 Compliance
+              </TabsTrigger>
+              <TabsTrigger value="templates">
+                <FileText className="mr-2" size={16} />
+                Templates
+              </TabsTrigger>
+              <TabsTrigger value="history">
+                <History className="mr-2" size={16} />
+                Version History
               </TabsTrigger>
             </TabsList>
 
@@ -507,7 +547,87 @@ export default function AdminSettingsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Templates */}
+            <TabsContent value="templates">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Email & SMS Templates</CardTitle>
+                  <CardDescription>Preview and customize notification templates</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-2">Email Templates</h3>
+                      <p className="text-sm text-slate-600 mb-4">Customize email notification templates</p>
+                      <Button variant="outline" onClick={() => previewTemplate('email')}>
+                        <Eye className="w-4 h-4 mr-2" />
+                        Preview Email Template
+                      </Button>
+                    </div>
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-2">SMS Templates</h3>
+                      <p className="text-sm text-slate-600 mb-4">Customize SMS notification templates</p>
+                      <Button variant="outline" onClick={() => previewTemplate('sms')}>
+                        <Eye className="w-4 h-4 mr-2" />
+                        Preview SMS Template
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Version History */}
+            <TabsContent value="history">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Settings Version History</CardTitle>
+                  <CardDescription>Track all changes to system settings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {versionHistory.map((version) => (
+                      <div key={version.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <History className="w-4 h-4 text-slate-500" />
+                            <span className="font-semibold">Version {version.version}</span>
+                          </div>
+                          <span className="text-sm text-slate-500">{version.changedAt}</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-1">
+                          <strong>Changed by:</strong> {version.changedBy}
+                        </p>
+                        <p className="text-sm text-slate-700">{version.changes}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
+
+          {/* Template Preview Modal */}
+          {showTemplatePreview && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Template Preview</CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => setShowTemplatePreview(false)}>
+                      Close
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="whitespace-pre-wrap border rounded-lg p-4 bg-slate-50">
+                    {templatePreview}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -107,4 +107,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
                 ORDER BY appointment_time DESC
                 """, nativeQuery = true)
         java.util.List<Appointment> findAllWithValidStatus();
+
+        List<Appointment> findByFacilityId(UUID facilityId);
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { facilitiesApi } from '@/lib/api';
@@ -22,6 +23,19 @@ export default function ClinicsPage() {
   const [stateFilter, setStateFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  const formatTime = (timeStr?: string) => {
+    if (!timeStr) return null;
+    try {
+      // Normalize to HH:mm:ss for parsing
+      const normalized = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+      const date = new Date(`1970-01-01T${normalized}`);
+      if (isNaN(date.getTime())) return timeStr;
+      return format(date, 'h:mm a');
+    } catch (e) {
+      return timeStr;
+    }
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -223,7 +237,11 @@ export default function ClinicsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-slate-400" />
-                        <span>{clinic.openingTime && clinic.closingTime ? `${clinic.openingTime} - ${clinic.closingTime}` : 'Hours not set'}</span>
+                        <span>
+                          {clinic.openingTime && clinic.closingTime
+                            ? `${formatTime(clinic.openingTime)} - ${formatTime(clinic.closingTime)}`
+                            : 'Hours not set'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Power className={`w-4 h-4 ${clinic.active ? 'text-green-500' : 'text-slate-400'}`} />

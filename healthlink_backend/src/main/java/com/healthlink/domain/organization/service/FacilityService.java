@@ -4,15 +4,21 @@ import com.healthlink.domain.organization.dto.FacilityRequest;
 import com.healthlink.domain.organization.dto.FacilityResponse;
 import com.healthlink.domain.organization.entity.Facility;
 import com.healthlink.domain.organization.repository.FacilityRepository;
+import com.healthlink.domain.appointment.entity.AppointmentStatus;
+import com.healthlink.domain.appointment.repository.AppointmentRepository;
+import com.healthlink.domain.notification.NotificationType;
+import com.healthlink.domain.notification.service.NotificationSchedulerService;
 import com.healthlink.domain.user.entity.Doctor;
 import com.healthlink.domain.user.entity.Organization;
 import com.healthlink.domain.user.repository.UserRepository;
+import com.healthlink.service.notification.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +27,9 @@ public class FacilityService {
 
     private final FacilityRepository facilityRepository;
     private final UserRepository userRepository;
+    private final AppointmentRepository appointmentRepository;
+    private final NotificationSchedulerService notificationSchedulerService;
+    private final EmailService emailService;
 
     public FacilityResponse createForOrganization(UUID organizationId, FacilityRequest request) {
         Organization org = (Organization) userRepository.findById(organizationId)
@@ -68,6 +77,48 @@ public class FacilityService {
         Facility f = facilityRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Facility not found"));
         f.setActive(false);
         facilityRepository.save(f);
+    }
+
+    public void deleteFacility(UUID id) {
+        Facility f = facilityRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Facility not found"));
+
+        // Cancel all appointments linked to this facility
+        var appointments = appointmentRepository.findByFacilityId(id);
+        for (var apt : appointments) {
+            apt.setStatus(AppointmentStatus.CANCELLED);
+            apt.setDeletedAt(LocalDateTime.now());
+        }
+        appointmentRepository.saveAll(appointments);
+
+        // Soft-delete facility
+        f.softDelete();
+        f.setActive(false);
+        facilityRepository.save(f);
+
+        // Notify doctor owner (in-app + email)
+        Doctor doctor = f.getDoctorOwner();
+        if (doctor != null) {
+            try {
+                notificationSchedulerService.scheduleNotification(
+                        doctor.getId(),
+                        NotificationType.APPOINTMENT_CANCELED,
+                        "Clinic deleted",
+                        "Your clinic \"" + f.getName() + "\" was deleted by an admin. Related appointments were cancelled."
+                );
+            } catch (Exception ignored) {
+            }
+
+            if (doctor.getEmail() != null) {
+                try {
+                    emailService.sendSimpleEmail(
+                            doctor.getEmail(),
+                            "Clinic deleted by admin",
+                            "Your clinic \"" + f.getName() + "\" was deleted by an admin. All related appointments were cancelled."
+                    );
+                } catch (Exception ignored) {
+                }
+            }
+        }
     }
 
     public void activate(UUID id) {

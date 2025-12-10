@@ -7,6 +7,7 @@ import {
   CreditCard,
   Shield,
   Stethoscope,
+  Bell,
 } from 'lucide-react';
 
 export const doctorSidebarItems = [
@@ -16,6 +17,7 @@ export const doctorSidebarItems = [
   { icon: Stethoscope, label: 'Emergency', href: '/doctor/emergency/new' },
   { icon: FileText, label: 'Prescriptions', href: '/doctor/prescriptions' },
   { icon: Activity, label: 'Analytics', href: '/doctor/analytics' },
+  { icon: Bell, label: 'Notifications', href: '/doctor/notifications' },
   { icon: Shield, label: 'Profile', href: '/doctor/profile' },
 ];
 

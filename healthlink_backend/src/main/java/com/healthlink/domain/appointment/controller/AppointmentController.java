@@ -93,7 +93,7 @@ public class AppointmentController {
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','STAFF')")
+    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','STAFF','ADMIN')")
     @Operation(summary = "Cancel an appointment")
     @ApiResponse(responseCode = "200", description = "Cancellation successful")
     public ResponseEntity<AppointmentResponse> cancel(@PathVariable java.util.UUID id,
@@ -118,6 +118,24 @@ public class AppointmentController {
             @PathVariable java.util.UUID id,
             @RequestParam(required = false) String reason) {
         return ResponseEntity.ok(appointmentService.markNoShow(id, reason));
+    }
+
+    @PostMapping("/{id}/remind")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Send appointment reminder email to patient")
+    public ResponseEntity<Void> sendReminder(@PathVariable java.util.UUID id) {
+        appointmentService.sendReminder(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reschedule")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Admin reschedule an appointment to a new start time (ISO-8601)")
+    public ResponseEntity<AppointmentResponse> adminReschedule(
+            @PathVariable java.util.UUID id,
+            @RequestParam("newStart") String newStart) {
+        java.time.LocalDateTime newStartTime = java.time.LocalDateTime.parse(newStart);
+        return ResponseEntity.ok(appointmentService.rescheduleAppointment(id, newStartTime));
     }
 
     @GetMapping("/{id}")

@@ -20,10 +20,13 @@ export default function AdminPatientsPage() {
     setIsLoading(true);
     try {
       const data = await adminApi.getAllPatients();
-      setPatients(data || []);
+      // Ensure data is always an array
+      const patientsArray = Array.isArray(data) ? data : [];
+      setPatients(patientsArray);
     } catch (error: any) {
       toast.error('Failed to load patients');
       console.error('Patients load error:', error);
+      setPatients([]);
     } finally {
       setIsLoading(false);
     }

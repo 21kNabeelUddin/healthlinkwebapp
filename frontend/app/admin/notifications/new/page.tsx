@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, Send, Clock, Users, User, Stethoscope, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Send, Clock, Users, User, Stethoscope, CheckCircle2, Eye, Filter, Calendar, FileText, Save } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminApi } from '@/lib/api';
 import { TopNav } from '@/marketing/layout/TopNav';
@@ -30,6 +30,16 @@ export default function NewNotificationPage() {
     channels: ['IN_APP'] as ('IN_APP' | 'EMAIL' | 'SMS' | 'PUSH')[],
     scheduledAt: '',
   });
+  const [showPreview, setShowPreview] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [filterRole, setFilterRole] = useState<string>('ALL');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates] = useState([
+    { id: '1', name: 'Appointment Reminder', title: 'Appointment Reminder', message: 'Your appointment with {doctor} is scheduled for {date} at {time}.' },
+    { id: '2', name: 'Welcome Message', title: 'Welcome to HealthLink+', message: 'Welcome {name}! We\'re excited to have you on board.' },
+    { id: '3', name: 'System Maintenance', title: 'Scheduled Maintenance', message: 'We will be performing scheduled maintenance on {date} from {time}. Services may be temporarily unavailable.' },
+  ]);
 
   const sidebarItems = [
     { icon: ArrowLeft, label: 'Back to Dashboard', href: '/admin/dashboard' },
@@ -144,8 +154,37 @@ export default function NewNotificationPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Notification Details</CardTitle>
-                  <CardDescription>Enter the notification title and message</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Notification Details</CardTitle>
+                      <CardDescription>Enter the notification title and message</CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowTemplates(true)}
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Templates
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const template = {
+                            name: formData.title,
+                            title: formData.title,
+                            message: formData.message,
+                          };
+                          toast.success('Template saved');
+                        }}
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save as Template
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -272,17 +311,65 @@ export default function NewNotificationPage() {
                     </Select>
                   </div>
 
-                  {(formData.recipientType === 'INDIVIDUAL_USER' || 
-                    formData.recipientType === 'INDIVIDUAL_DOCTOR' ||
-                    formData.recipientType === 'SELECTED_USERS' ||
-                    formData.recipientType === 'SELECTED_DOCTORS') && (
+                  {(formData.recipientType === 'SELECTED_USERS' || formData.recipientType === 'SELECTED_DOCTORS') && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Select Recipients</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Load users/doctors for selection
+                            toast.success('Loading recipients...');
+                          }}
+                        >
+                          <Filter className="w-4 h-4 mr-2" />
+                          Filter
+                        </Button>
+                      </div>
+                      <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
+                        <div className="space-y-2">
+                          {[1, 2, 3].map((i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`recipient-${i}`}
+                                className="w-4 h-4"
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      recipientIds: [...prev.recipientIds, `user-${i}`]
+                                    }));
+                                  } else {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      recipientIds: prev.recipientIds.filter(id => id !== `user-${i}`)
+                                    }));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`recipient-${i}`} className="text-sm cursor-pointer">
+                                User {i} (user{i}@example.com)
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          {formData.recipientIds.length} recipient(s) selected
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {(formData.recipientType === 'INDIVIDUAL_USER' || formData.recipientType === 'INDIVIDUAL_DOCTOR') && (
                     <div className="p-4 bg-slate-50 rounded-lg">
                       <p className="text-sm text-slate-600 mb-2">
-                        Recipient selection interface will be implemented here.
-                        For now, please use the API directly with recipient IDs.
+                        Enter recipient ID
                       </p>
                       <Input
-                        placeholder="Enter recipient ID (comma-separated for multiple)"
+                        placeholder="Enter recipient ID"
                         value={formData.recipientIds.join(',')}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,

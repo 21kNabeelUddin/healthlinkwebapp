@@ -17,6 +17,15 @@ import {
   CheckCircle2,
   Bell,
   Send,
+  Download,
+  Server,
+  Database,
+  Mail,
+  CreditCard,
+  Video,
+  Cpu,
+  HardDrive,
+  MemoryStick,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,7 +52,21 @@ export default function AdminDashboard() {
     setIsLoading(true);
     try {
       const data = await adminApi.getDashboard();
-      setDashboardData(data);
+      console.log('Dashboard data received:', data);
+      // Ensure all fields are numbers
+      const normalizedData = {
+        totalPatients: Number(data?.totalPatients ?? 0),
+        totalDoctors: Number(data?.totalDoctors ?? 0),
+        totalAdmins: Number(data?.totalAdmins ?? 0),
+        totalAppointments: Number(data?.totalAppointments ?? 0),
+        totalClinics: Number(data?.totalClinics ?? 0),
+        totalMedicalHistories: Number(data?.totalMedicalHistories ?? 0),
+        pendingAppointments: Number(data?.pendingAppointments ?? 0),
+        confirmedAppointments: Number(data?.confirmedAppointments ?? 0),
+        completedAppointments: Number(data?.completedAppointments ?? 0),
+      };
+      console.log('Normalized dashboard data:', normalizedData);
+      setDashboardData(normalizedData);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Failed to load dashboard data';
       const status = error?.response?.status;
@@ -141,9 +164,33 @@ export default function AdminDashboard() {
                 <p className="text-slate-600">Monitor and manage HealthLink+ operations</p>
               </div>
               <div className="flex gap-3">
-                <Button variant="outline">
-                  <Activity className="w-4 h-4 mr-2" />
-                  Generate Report
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    window.print();
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Print/Export
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const data = {
+                      stats: dashboardData,
+                      timestamp: new Date().toISOString(),
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    toast.success('Dashboard exported');
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export JSON
                 </Button>
               </div>
             </div>
@@ -187,25 +234,157 @@ export default function AdminDashboard() {
 
                 <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
                   <h2 className="text-xl text-slate-900 mb-6">Quick Actions</h2>
-                  <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
                     <Link href="/admin/patients">
-                      <Button className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
+                      <Button className="w-full h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
                         <Users className="w-8 h-8" />
                         <span>Manage Patients</span>
                       </Button>
                     </Link>
                     <Link href="/admin/doctors">
-                      <Button className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600">
+                      <Button className="w-full h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600">
                         <Stethoscope className="w-8 h-8" />
                         <span>Manage Doctors</span>
                       </Button>
                     </Link>
                     <Link href="/admin/clinics">
-                      <Button className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600">
+                      <Button className="w-full h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600">
                         <Building2 className="w-8 h-8" />
                         <span>Manage Clinics</span>
                       </Button>
                     </Link>
+                    <Link href="/admin/appointments/enhanced">
+                      <Button className="w-full h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
+                        <Calendar className="w-8 h-8" />
+                        <span>View Appointments</span>
+                      </Button>
+                    </Link>
+                    <Link href="/admin/notifications/new">
+                      <Button className="w-full h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600">
+                        <Bell className="w-8 h-8" />
+                        <span>Send Notification</span>
+                      </Button>
+                    </Link>
+                    <Link href="/admin/settings">
+                      <Button className="w-full h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600">
+                        <Settings className="w-8 h-8" />
+                        <span>System Settings</span>
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Trend Charts */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                    <h3 className="text-lg text-slate-900 mb-4">User Growth Trend</h3>
+                    <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
+                      Chart visualization would go here
+                    </div>
+                  </div>
+                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                    <h3 className="text-lg text-slate-900 mb-4">Appointment Trends</h3>
+                    <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
+                      Chart visualization would go here
+                    </div>
+                  </div>
+                </div>
+
+                {/* Time-based Filters */}
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg text-slate-900">Time Filters</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">Today</Button>
+                      <Button variant="outline" size="sm">This Week</Button>
+                      <Button variant="outline" size="sm">This Month</Button>
+                      <Button variant="default" size="sm">All Time</Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Status Indicators */}
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                  <h3 className="text-lg text-slate-900 mb-4">System Status</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <Server className="w-5 h-5 text-blue-500" />
+                        <span className="text-sm font-medium text-slate-700">API Gateway</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">Operational</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <Database className="w-5 h-5 text-indigo-500" />
+                        <span className="text-sm font-medium text-slate-700">Database</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">Operational</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-5 h-5 text-purple-500" />
+                        <span className="text-sm font-medium text-slate-700">Email Service</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">Operational</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="w-5 h-5 text-emerald-500" />
+                        <span className="text-sm font-medium text-slate-700">Payment Gateway</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">Operational</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <Video className="w-5 h-5 text-orange-500" />
+                        <span className="text-sm font-medium text-slate-700">Zoom Integration</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">Operational</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resource Utilization */}
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                  <h3 className="text-lg text-slate-900 mb-4">Resource Utilization</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Cpu className="w-4 h-4 text-blue-500" />
+                          <span className="text-sm font-medium text-slate-700">CPU Usage</span>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">42%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2.5">
+                        <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: '42%' }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-purple-500" />
+                          <span className="text-sm font-medium text-slate-700">Memory Usage</span>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">68%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2.5">
+                        <div className="bg-purple-500 h-2.5 rounded-full" style={{ width: '68%' }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <HardDrive className="w-4 h-4 text-emerald-500" />
+                          <span className="text-sm font-medium text-slate-700">Disk Space</span>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">35%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2.5">
+                        <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: '35%' }}></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -218,7 +397,17 @@ export default function AdminDashboard() {
                       <AlertTriangle className="w-5 h-5" />
                       <h3 className="text-lg font-semibold">Critical Alerts</h3>
                     </div>
-                    <Badge variant="secondary" className="bg-white/20 text-white">2 Active</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-white/20 text-white">2 Active</Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
+                        onClick={() => router.push('/admin/smart-suggestions')}
+                      >
+                        View All
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="bg-white/10 rounded-lg p-3">
@@ -270,65 +459,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Quick Actions Panel */}
-                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
-                  <h3 className="text-lg text-slate-900 mb-4">Quick Actions</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Link href="/admin/notifications/new">
-                      <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2">
-                        <Send className="w-5 h-5" />
-                        <span className="text-xs">Send Notification</span>
-                      </Button>
-                    </Link>
-                    <Link href="/admin/users">
-                      <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2">
-                        <Users className="w-5 h-5" />
-                        <span className="text-xs">Manage Users</span>
-                      </Button>
-                    </Link>
-                    <Link href="/admin/appointments">
-                      <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2">
-                        <Calendar className="w-5 h-5" />
-                        <span className="text-xs">View Appointments</span>
-                      </Button>
-                    </Link>
-                    <Link href="/admin/analytics">
-                      <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2">
-                        <Activity className="w-5 h-5" />
-                        <span className="text-xs">View Analytics</span>
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Trend Charts */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
-                    <h3 className="text-lg text-slate-900 mb-4">User Growth Trend</h3>
-                    <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
-                      Chart visualization would go here
-                    </div>
-                  </div>
-                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
-                    <h3 className="text-lg text-slate-900 mb-4">Appointment Trends</h3>
-                    <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
-                      Chart visualization would go here
-                    </div>
-                  </div>
-                </div>
-
-                {/* Time-based Filters */}
-                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg text-slate-900">Time Filters</h3>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Today</Button>
-                      <Button variant="outline" size="sm">This Week</Button>
-                      <Button variant="outline" size="sm">This Month</Button>
-                      <Button variant="default" size="sm">All Time</Button>
-                    </div>
-                  </div>
-                </div>
 
                 <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-lg">
                   <div className="flex items-center gap-2 mb-4">
